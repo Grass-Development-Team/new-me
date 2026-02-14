@@ -14,6 +14,7 @@ export interface MessagePart<C = string> {
 export type Message = MessagePart[];
 
 export interface GenerateOptions {
+  system_prompt?: string;
   signal?: AbortSignal;
 }
 

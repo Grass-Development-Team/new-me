@@ -22,7 +22,7 @@ export default abstract class Adapter {
    * @returns A promise that resolves to a Response object.
    */
   abstract generate(
-    message: Message,
+    message: Message[],
     options?: GenerateOptions,
   ): Promise<Message>;
 
@@ -32,7 +32,7 @@ export default abstract class Adapter {
    * @returns an async generator that yields MessagePart objects as the response is generated. This allows for streaming responses, where parts of the response can be processed and displayed as they are received, rather than waiting for the entire response to be generated before processing.
    */
   abstract generate_stream(
-    message: Message,
+    message: Message[],
     options: GenerateOptions,
   ): AsyncGenerator<MessagePart>;
 }
