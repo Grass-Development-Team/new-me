@@ -1,5 +1,5 @@
 import type AdapterConfig from "./config";
-import type { GenerateOptions, Message, MessagePart } from "./message";
+import type { GenerateOptions, Message, MessagePartUnion } from "./message";
 import type Tools from "./tools";
 
 export default abstract class Adapter {
@@ -34,5 +34,5 @@ export default abstract class Adapter {
   abstract generate_stream(
     message: Message[],
     options: GenerateOptions,
-  ): AsyncGenerator<MessagePart>;
+  ): AsyncGenerator<MessagePartUnion>;
 }

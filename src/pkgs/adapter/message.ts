@@ -1,50 +1,35 @@
-export enum MessageType {
-  Text,
-  Image,
-  Video,
-  Audio,
-  Other,
+export interface MessagePart<T = "text", C = string> {
+  type: T;
+  content: C;
+  cached?: boolean;
 }
 
-export interface MessagePart<C = string> {
-  type: MessageType;
-  content: C;
-}
+export type TextMessagePart = MessagePart;
+export type ImageMessagePart = MessagePart<
+  "image",
+  | {
+      mime: string;
+      url: string;
+    }
+  | string
+>;
+export type VideoMessagePart = MessagePart<"video", any | string>;
+export type AudioMessagePart = MessagePart<"audio", any | string>;
+export type OtherMessagePart = MessagePart<string, any | string>;
+
+export type MessagePartUnion =
+  | TextMessagePart
+  | ImageMessagePart
+  | VideoMessagePart
+  | AudioMessagePart
+  | OtherMessagePart;
 
 export type Message = {
   role: "user" | "assistant" | "system";
-  parts: MessagePart[];
+  parts: MessagePartUnion[];
 };
 
 export interface GenerateOptions {
   system_prompt?: string;
   signal?: AbortSignal;
-}
-
-export function text(content: string): MessagePart {
-  return {
-    type: MessageType.Text,
-    content,
-  };
-}
-
-export function image(url: string): MessagePart {
-  return {
-    type: MessageType.Image,
-    content: url,
-  };
-}
-
-export function video(url: string): MessagePart {
-  return {
-    type: MessageType.Video,
-    content: url,
-  };
-}
-
-export function audio(url: string): MessagePart {
-  return {
-    type: MessageType.Audio,
-    content: url,
-  };
 }
