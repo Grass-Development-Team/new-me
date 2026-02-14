@@ -11,7 +11,10 @@ export interface MessagePart<C = string> {
   content: C;
 }
 
-export type Message = MessagePart[];
+export type Message = {
+  role: "user" | "assistant" | "system";
+  parts: MessagePart[];
+};
 
 export interface GenerateOptions {
   system_prompt?: string;
