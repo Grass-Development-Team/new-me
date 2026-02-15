@@ -1,6 +1,7 @@
 import type AdapterConfig from "./config";
 import type { GenerateOptions, Message, MessagePartUnion } from "./message";
-import type Tools from "./tools";
+
+import type Tools from "@/sunflower/tools";
 
 export default abstract class Adapter {
   /**

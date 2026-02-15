@@ -1,6 +1,8 @@
 import Scene from "..";
 
-import type { Message } from "@/pkgs/adapter/message";
+import type Sunflower from "@/sunflower";
+
+import type { Message } from "@/sunflower/adapter/message";
 
 interface IMPromptArgs {
   chat_type: "群组" | "私聊";
@@ -89,5 +91,7 @@ export default class IMScene extends Scene {
   `;
   }
 
-  async *generate(message: Message[]) {}
+  async *generate(message: Message[], sunflower: Sunflower) {
+    const adapter = sunflower.get_adapter(this.model.driver);
+  }
 }

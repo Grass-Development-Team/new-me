@@ -6,7 +6,8 @@ import {
   type GenerateOptions,
   type MessagePartUnion,
 } from "../message";
-import type Tools from "../tools";
+
+import type Tools from "@/sunflower/tools";
 
 import {
   GoogleGenAI,

@@ -1,18 +1,17 @@
-import "@/config";
-import type Config from "@/config";
+import Sunflower from "@/sunflower";
+import type Config from "@/sunflower/config";
 
-import Gemini from "@/pkgs/adapter/buildin/gemini";
-
-import IMScene from "@/pkgs/scene/buildin/im";
+import Gemini from "@/sunflower/adapter/buildin/gemini";
+import IMScene from "@/sunflower/scene/buildin/im";
 
 const config: Config = {
-  persona: process.env["PERSONA"] || "",
+  persona: "",
 
   models: {
-    base_model: { model: "gemini-3-flash-preview", driver: "gemini" },
-    history_model: { model: "gemini-3-flash-preview", driver: "gemini" },
-    image_read_model: { model: "gemini-3-flash-preview", driver: "gemini" },
-    image_gen_model: { model: "gemini-3-flash-preview", driver: "gemini" },
+    history_model: {
+      model: "gemini-3-flash-preview",
+      driver: "gemini",
+    },
   },
   drivers: {
     gemini: new Gemini({
@@ -23,6 +22,11 @@ const config: Config = {
     }),
   },
   scenes: {
-    im: new IMScene(),
+    im: new IMScene({
+      model: "gemini-3-flash-preview",
+      driver: "gemini",
+    }),
   },
 };
+
+const sunflower = new Sunflower(config);
