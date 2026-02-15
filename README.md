@@ -1,11 +1,3 @@
-# Sunflower v3.5
+# New ME
 
-This is an update of Sunflower v3.
-
-## Changes
-
-- Updated dependencies to latest versions.
-- Improved performance of the main algorithm.
-- Fixed several bugs reported by users.
-- Change WebSocket to ConnectRPC for better performance and reliability.
-- Add tool calling support to the API.
+这是 New ME (Sunflower v3) 的仓库。

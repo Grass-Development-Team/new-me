@@ -1,35 +1,22 @@
-import logger from "@/logger";
+import type Adapter from "@/pkgs/adapter";
+import type Scene from "@/pkgs/scene";
 
-export interface Config {
-  base_url: string;
-  api_key: string;
-  driver: string;
+export default interface Config {
   persona: string;
 
-  model: string;
-  history_model: string;
-  image_read_model?: string;
-  image_gen_model?: string;
+  models: ModelsConfig;
+  drivers: { [key: string]: Adapter };
+  scenes: { [key: string]: Scene };
 }
 
-const api_key =
-  process.env["API_KEY"] ||
-  (() => {
-    logger.error("require environment API_KEY");
-    process.exit(-1);
-  })();
+export interface ModelsConfig {
+  base_model: ModelConfig;
+  history_model: ModelConfig;
+  image_read_model?: ModelConfig;
+  image_gen_model?: ModelConfig;
+}
 
-const config: Config = {
-  base_url: process.env["BASE_URL"] || "https://api.openai.com/v1",
-  api_key: api_key,
-  driver: process.env["DRIVER"] || "gemini",
-  persona: process.env["PERSONA"] || "",
-
-  model: process.env["MODEL"] || "gpt-5.2",
-  history_model:
-    process.env["HISTORY_MODEL"] || process.env["MODEL"] || "gpt-5.2",
-  image_read_model: process.env["IMAGE_READ_MODEL"],
-  image_gen_model: process.env["IMAGE_GEN_MODEL"],
-};
-
-export default config;
+export interface ModelConfig {
+  model: string;
+  driver: string;
+}
