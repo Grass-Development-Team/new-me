@@ -190,7 +190,7 @@ export default class Gemini extends Adapter {
 
   async *generate_stream(
     message: Message[],
-    options: GenerateOptions,
+    options?: GenerateOptions,
   ): AsyncGenerator<MessagePartUnion> {
     const contents = this.message_to_content(message);
     const tools: ToolListUnion = [
