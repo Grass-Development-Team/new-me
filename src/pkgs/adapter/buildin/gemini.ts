@@ -130,7 +130,7 @@ export default class Gemini extends Adapter {
 
     const generate = async (contents: Content[]) => {
       const res = await this.client.models.generateContent({
-        model: this.config.model,
+        model: options?.model ?? this.config.model,
         contents: contents,
         config: {
           abortSignal: options?.signal,
@@ -214,7 +214,7 @@ export default class Gemini extends Adapter {
       contents: Content[],
     ): AsyncGenerator<MessagePartUnion> {
       const res = await client.models.generateContentStream({
-        model: config.model,
+        model: options?.model ?? config.model,
         contents: contents,
         config: {
           abortSignal: options?.signal,

@@ -31,5 +31,6 @@ export type Message = {
 
 export interface GenerateOptions {
   system_prompt?: string;
+  model?: string;
   signal?: AbortSignal;
 }
