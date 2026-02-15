@@ -89,7 +89,5 @@ export default class IMScene extends Scene {
   `;
   }
 
-  gen_reply(message: Message) {
-    return {};
-  }
+  async *generate(message: Message[]) {}
 }
