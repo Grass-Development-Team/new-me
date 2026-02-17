@@ -15,7 +15,10 @@ export type ImageMessagePart = MessagePart<
 >;
 export type VideoMessagePart = MessagePart<"video", any | string>;
 export type AudioMessagePart = MessagePart<"audio", any | string>;
-export type OtherMessagePart = MessagePart<string, any | string>;
+export type OtherMessagePart = MessagePart<
+  Exclude<string, "text" | "image" | "video" | "audio">,
+  any | string
+>;
 
 export type MessagePartUnion =
   | TextMessagePart
