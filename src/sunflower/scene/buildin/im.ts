@@ -1,8 +1,11 @@
+import logger from "@/logger";
 import Scene from "..";
 
 import type Sunflower from "@/sunflower";
 
 import type { Message } from "@/sunflower/adapter/message";
+import { calc_typing_delay } from "@/utils/typing";
+import { sleep } from "bun";
 
 interface IMPromptArgs {
   chat_type: "群组" | "私聊";
@@ -10,7 +13,12 @@ interface IMPromptArgs {
   chat_history: string;
 }
 
-export default class IMScene extends Scene {
+interface ResponseMessage {
+  score: number;
+  target: string;
+}
+
+export default class IMScene extends Scene<IMPromptArgs> {
   scene: string = "im";
 
   prompt(args: IMPromptArgs): string {
@@ -91,7 +99,79 @@ export default class IMScene extends Scene {
   `;
   }
 
-  async *generate(message: Message[], sunflower: Sunflower) {
+  async *generate(
+    message: Message[],
+    args: IMPromptArgs,
+    signal: AbortSignal,
+    sunflower: Sunflower,
+  ) {
     const adapter = sunflower.get_adapter(this.model.driver);
+
+    if (!adapter) {
+      throw new Error("Adapter not found");
+    }
+
+    try {
+      const stream = adapter.generate_stream(message, {
+        system_prompt: `${sunflower.config.persona}\n${this.prompt(args)}`,
+        signal: signal,
+      });
+
+      let meta: ResponseMessage | undefined;
+      let buffer = "";
+      let msg_count = 0;
+
+      for await (const part of stream) {
+        if (part.type === "text") {
+          buffer += part.content;
+
+          if (!meta) {
+            const meta_match = buffer.match(
+              /\[\[meta::start\]\]([\s\S]*?)\[\[meta::end\]\]/i,
+            );
+
+            if (meta_match) {
+              meta = JSON.parse(meta_match[1]!.trim());
+
+              if (!("score" in meta! && "target" in meta!)) {
+                throw new Error("Invalid meta format");
+              }
+
+              buffer = buffer.replace(meta_match[0]!, "");
+            }
+          }
+
+          while (buffer.includes("[[msg_split]]")) {
+            const msg = buffer.split("[[msg_split]]").shift()!.trim();
+            buffer = buffer.replace(msg + "[[msg_split]]", "");
+
+            if (msg_count !== 0) {
+              await sleep(calc_typing_delay(msg));
+            }
+
+            yield {
+              type: "text",
+              content: msg,
+            };
+          }
+        } else if (part.type === "image") {
+          await sleep(Math.random() * 1000 + 500);
+          yield part;
+        }
+      }
+
+      if (buffer !== "") {
+        if (msg_count !== 0) {
+          await sleep(calc_typing_delay(buffer));
+        }
+
+        yield {
+          type: "text",
+          content: buffer.trim(),
+        };
+      }
+    } catch (err) {
+      logger.error("Error in IMScene generate: ", err);
+    }
   }
 }
