@@ -6,6 +6,7 @@ import IMScene from "@/sunflower/scene/buildin/im";
 
 const config: Config = {
   persona: "",
+  storage: "data",
 
   models: {
     history_model: {

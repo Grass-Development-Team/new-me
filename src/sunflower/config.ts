@@ -3,6 +3,7 @@ import type Scene from "@/sunflower/scene";
 
 export default interface Config {
   persona: string;
+  storage: string;
 
   models: ModelsConfig;
   drivers: { [key: string]: Adapter };
