@@ -79,17 +79,7 @@ export default class Gemini extends Adapter {
 
   set tools(tools: Tools[]) {
     this._tools = tools;
-    this._gemini_tools_definitions = tools.map((tool): FunctionDeclaration => {
-      return {
-        name: tool.name,
-        description: tool.description,
-        parameters: {
-          type: Type.OBJECT,
-          properties: tool.parameters,
-          required: tool.required,
-        },
-      };
-    });
+    this._gemini_tools_definitions = this.tools_to_gemini_tools(tools);
   }
 
   private client: GoogleGenAI;
@@ -127,6 +117,9 @@ export default class Gemini extends Adapter {
         : {
             functionDeclarations: this._gemini_tools_definitions,
           },
+      options?.tools
+        ? { functionDeclarations: this.tools_to_gemini_tools(options.tools) }
+        : undefined,
     ].filter((item) => item !== undefined);
 
     const generate = async (contents: Content[]) => {
@@ -206,6 +199,9 @@ export default class Gemini extends Adapter {
         : {
             functionDeclarations: this._gemini_tools_definitions,
           },
+      options?.tools
+        ? { functionDeclarations: this.tools_to_gemini_tools(options.tools) }
+        : undefined,
     ].filter((item) => item !== undefined);
 
     const generate = async function* (
@@ -334,5 +330,19 @@ export default class Gemini extends Adapter {
           })
           ?.filter((part) => part !== undefined) ?? [],
     };
+  }
+
+  tools_to_gemini_tools(tools: Tools[]): FunctionDeclaration[] {
+    return tools.map((tool): FunctionDeclaration => {
+      return {
+        name: tool.name,
+        description: tool.description,
+        parameters: {
+          type: Type.OBJECT,
+          properties: tool.parameters,
+          required: tool.required,
+        },
+      };
+    });
   }
 }

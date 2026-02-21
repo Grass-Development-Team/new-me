@@ -1,3 +1,5 @@
+import type Tools from "@/sunflower/tools";
+
 export interface MessagePart<T = "text", C = string> {
   type: T;
   content: C;
@@ -36,4 +38,5 @@ export interface GenerateOptions {
   system_prompt?: string;
   model?: string;
   signal?: AbortSignal;
+  tools?: Tools[];
 }
