@@ -104,9 +104,11 @@ export default class Gemini extends Adapter {
       {
         urlContext: {},
       },
-      {
-        functionDeclarations: this.tools_to_gemini_tools(functions),
-      },
+      functions.length > 0
+        ? {
+            functionDeclarations: this.tools_to_gemini_tools(functions),
+          }
+        : undefined,
     ].filter((item) => item !== undefined);
 
     const generate = async (contents: Content[]) => {
@@ -182,7 +184,9 @@ export default class Gemini extends Adapter {
       {
         urlContext: {},
       },
-      { functionDeclarations: this.tools_to_gemini_tools(functions) },
+      functions.length > 0
+        ? { functionDeclarations: this.tools_to_gemini_tools(functions) }
+        : undefined,
     ].filter((item) => item !== undefined);
 
     const generate = async function* (
