@@ -1,6 +1,7 @@
 import type Sunflower from "@/sunflower";
 
 import type { ModelConfig } from "@/sunflower/config";
+import type Tools from "@/sunflower/tools";
 
 import type { Message, MessagePartUnion } from "@/sunflower/adapter/message";
 
@@ -16,7 +17,8 @@ export default abstract class Scene<T = any> {
   abstract prompt(args: T): string;
   abstract generate(
     message: Message[],
-    args: T,
+    prompt: string,
+    tools: Tools[],
     signal: AbortSignal,
     sunflower: Sunflower,
   ): AsyncGenerator<MessagePartUnion>;

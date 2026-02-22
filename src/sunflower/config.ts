@@ -4,6 +4,7 @@ import type Scene from "@/sunflower/scene";
 export default interface Config {
   persona: string;
   storage: string;
+  max_history?: number;
 
   models: ModelsConfig;
   drivers: { [key: string]: Adapter };

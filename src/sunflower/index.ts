@@ -1,4 +1,4 @@
-import Storage from "@/store";
+import Storage from "@/sunflower/storage";
 
 import type Config from "@/sunflower/config";
 import type Adapter from "@/sunflower/adapter";
@@ -13,12 +13,18 @@ export default class Sunflower {
   }
 
   async init() {
-    await this.storage.open();
+    await this.storage.init();
   }
 
   get_adapter(adapter: string): Adapter | undefined {
     if (adapter in this.config.drivers) {
       return this.config.drivers[adapter];
+    }
+  }
+
+  get_scene(scene: string) {
+    if (scene in this.config.scenes) {
+      return this.config.scenes[scene];
     }
   }
 

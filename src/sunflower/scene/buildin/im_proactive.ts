@@ -16,7 +16,7 @@ interface IMPromptArgs {
   chat_info: string;
 }
 
-export default class IMScene extends Scene<IMPromptArgs> {
+export default class IMProactiveScene extends Scene<IMPromptArgs> {
   scene: string = "im";
 
   prompt(args: IMPromptArgs): string {
@@ -33,7 +33,7 @@ export default class IMScene extends Scene<IMPromptArgs> {
 
     ### 场景回答规范
 
-    由于你正处于 IM 聊天中，除非非常必要（比如解释一个专业知识等），否则请将你的回复分为一条或几条消息。每一条消息尽可能精简，而不是长篇大论。在需要分割消息的地方，请你添加 \`[[msg_split]]\` 标识符。
+    由于你正处于 IM 的**主动**聊天中。你现在正在根据传进来的事件**主动**发起对话，而非回应某人。除非非常必要（比如解释一个专业知识等），否则请将你的回复分为一条或几条消息。每一条消息尽可能精简，而不是长篇大论。在需要分割消息的地方，请你添加 \`[[msg_split]]\` 标识符。
 
     元数据后请直接跟随回复消息的纯文本。如果需要调用工具，请在调用工具前的消息结尾添加 \`[[msg_split]]\`。所有标识符前后都不要添加空格换行等特殊符号。
 

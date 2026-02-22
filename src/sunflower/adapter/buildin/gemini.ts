@@ -1,3 +1,4 @@
+import logger from "@/logger";
 import Adapter from "..";
 
 import type AdapterConfig from "../config";
@@ -72,19 +73,9 @@ export default class Gemini extends Adapter {
   id: string = "gemini";
 
   config: AdapterConfig;
-
-  get tools(): Tools[] {
-    return this._tools;
-  }
-
-  set tools(tools: Tools[]) {
-    this._tools = tools;
-    this._gemini_tools_definitions = this.tools_to_gemini_tools(tools);
-  }
+  tools: Tools[] = [];
 
   private client: GoogleGenAI;
-  private _tools: Tools[] = [];
-  private _gemini_tools_definitions: FunctionDeclaration[] = [];
 
   constructor(config: AdapterConfig, tools: Tools[] = []) {
     super();
@@ -105,6 +96,7 @@ export default class Gemini extends Adapter {
     options?: GenerateOptions,
   ): Promise<Message> {
     const contents = this.message_to_content(message);
+    const functions = [...this.tools, ...(options?.tools ?? [])];
     const tools: ToolListUnion = [
       {
         googleSearch: {},
@@ -112,14 +104,9 @@ export default class Gemini extends Adapter {
       {
         urlContext: {},
       },
-      this._gemini_tools_definitions.length === 0
-        ? undefined
-        : {
-            functionDeclarations: this._gemini_tools_definitions,
-          },
-      options?.tools
-        ? { functionDeclarations: this.tools_to_gemini_tools(options.tools) }
-        : undefined,
+      {
+        functionDeclarations: this.tools_to_gemini_tools(functions),
+      },
     ].filter((item) => item !== undefined);
 
     const generate = async (contents: Content[]) => {
@@ -152,7 +139,7 @@ export default class Gemini extends Adapter {
         let parts: Part[] = [];
 
         for (const call of res.functionCalls) {
-          const tool = this.tools.find((tool) => tool.name === call.name);
+          const tool = functions.find((tool) => tool.name === call.name);
 
           let tool_response: string = "No tools found";
 
@@ -187,6 +174,7 @@ export default class Gemini extends Adapter {
     options?: GenerateOptions,
   ): AsyncGenerator<MessagePartUnion> {
     const contents = this.message_to_content(message);
+    const functions = [...this.tools, ...(options?.tools ?? [])];
     const tools: ToolListUnion = [
       {
         googleSearch: {},
@@ -194,14 +182,7 @@ export default class Gemini extends Adapter {
       {
         urlContext: {},
       },
-      this._gemini_tools_definitions.length === 0
-        ? undefined
-        : {
-            functionDeclarations: this._gemini_tools_definitions,
-          },
-      options?.tools
-        ? { functionDeclarations: this.tools_to_gemini_tools(options.tools) }
-        : undefined,
+      { functionDeclarations: this.tools_to_gemini_tools(functions) },
     ].filter((item) => item !== undefined);
 
     const generate = async function* (
@@ -210,6 +191,8 @@ export default class Gemini extends Adapter {
       all_tools: Tools[],
       contents: Content[],
     ): AsyncGenerator<MessagePartUnion> {
+      logger.debug("Send generate request:", contents);
+
       const res = await client.models.generateContentStream({
         model: options?.model ?? config.model,
         contents: contents,
@@ -223,6 +206,8 @@ export default class Gemini extends Adapter {
       const message: Part[] = [];
 
       for await (const part of res) {
+        logger.debug("Received part:", part);
+
         if (part.functionCalls) {
           message.push(...part.candidates![0]!.content!.parts!);
           contents.push({
@@ -273,7 +258,7 @@ export default class Gemini extends Adapter {
       }
     };
 
-    yield* generate(this.client, this.config, this.tools, contents);
+    yield* generate(this.client, this.config, functions, contents);
   }
 
   message_to_content(message: Message[]): Content[] {
