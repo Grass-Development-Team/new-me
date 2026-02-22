@@ -34,12 +34,20 @@ export default class Instance {
   private sunflower: Sunflower;
   private history: { [key: string]: Message[] } = {};
 
+  private running: { [key: string]: AbortController } = {};
+
   constructor(id: string, sunflower: Sunflower) {
     this.id = id;
     this.sunflower = sunflower;
   }
 
   async *generate(message: Message, scene: string, args: any) {
+    const msg_id = crypto.randomUUID();
+
+    this.running[msg_id] = new AbortController();
+
+    yield msg_id;
+
     const scene_obj = this.sunflower.get_scene(scene);
 
     if (!scene_obj) {
@@ -53,34 +61,45 @@ export default class Instance {
     const prompt =
       this.sunflower.config.persona + PROMPT + scene_obj.prompt(args);
 
+    let parts: MessagePartUnion[] = [];
+
     try {
       const stream = scene_obj.generate(
         [...this.history[scene], message],
         prompt,
         [new AddScore(this.sunflower)],
-        new AbortController().signal, // TODO: 需要在外部传入 signal 来支持外部中断
+        this.running[msg_id].signal,
         this.sunflower,
       );
-
-      let parts: MessagePartUnion[] = [];
 
       for await (const part of stream) {
         parts.push(part);
         yield part;
       }
-
-      this.history[scene].push(message, {
-        role: "assistant",
-        parts: parts,
-      });
-
-      const max_limit = this.sunflower.config.max_history ?? 30;
-
-      if (this.history[scene].length > max_limit) {
-        this.history[scene].shift();
-      }
     } catch (error) {
       logger.error(`Failed to generate message: ${(error as Error).message}`);
+    } finally {
+      delete this.running[msg_id];
+
+      if (parts.length > 0) {
+        this.history[scene].push(message, {
+          role: "assistant",
+          parts: parts,
+        });
+
+        const max_limit = this.sunflower.config.max_history ?? 60;
+
+        if (this.history[scene].length > max_limit) {
+          this.history[scene].shift();
+        }
+      }
+    }
+  }
+
+  async abort(msg_id: string) {
+    if (this.running[msg_id]) {
+      this.running[msg_id].abort();
+      delete this.running[msg_id];
     }
   }
 }
