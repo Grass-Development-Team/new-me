@@ -1,9 +1,11 @@
-import logger from "@/logger";
 import type Sunflower from ".";
 
 import type { Message, MessagePartUnion } from "@/sunflower/adapter/message";
 
 import AddScore from "@/sunflower/tools/buildin/add_score";
+
+import logger from "@/logger";
+import Lock from "@/utils/lock";
 
 const PROMPT = `
 ## 规范
@@ -33,8 +35,9 @@ export default class Instance {
 
   private sunflower: Sunflower;
   private history: { [key: string]: Message[] } = {};
-
   private running: { [key: string]: AbortController } = {};
+
+  private lock: Lock = new Lock();
 
   constructor(id: string, sunflower: Sunflower) {
     this.id = id;
@@ -42,12 +45,6 @@ export default class Instance {
   }
 
   async *generate(message: Message, scene: string, args: any) {
-    const msg_id = crypto.randomUUID();
-
-    this.running[msg_id] = new AbortController();
-
-    yield msg_id;
-
     const scene_obj = this.sunflower.get_scene(scene);
 
     if (!scene_obj) {
@@ -58,17 +55,31 @@ export default class Instance {
       this.history[scene] = [];
     }
 
+    const msg_id = crypto.randomUUID();
+
+    const controller = new AbortController();
+    const signal = controller.signal;
+    this.running[msg_id] = controller;
+
+    yield msg_id;
+
     const prompt =
       this.sunflower.config.persona + PROMPT + scene_obj.prompt(args);
 
     let parts: MessagePartUnion[] = [];
 
     try {
+      await this.lock.acquire();
+
+      if (signal.aborted) {
+        throw new Error("Generate Aborted");
+      }
+
       const stream = scene_obj.generate(
         [...this.history[scene], message],
         prompt,
         [new AddScore(this.sunflower)],
-        this.running[msg_id].signal,
+        signal,
         this.sunflower,
       );
 
@@ -79,7 +90,11 @@ export default class Instance {
     } catch (error) {
       logger.error(`Failed to generate message: ${(error as Error).message}`);
     } finally {
-      delete this.running[msg_id];
+      this.lock.release();
+
+      if (this.running[msg_id] === controller) {
+        delete this.running[msg_id];
+      }
 
       if (parts.length > 0) {
         this.history[scene].push(message, {
