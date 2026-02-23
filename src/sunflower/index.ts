@@ -1,11 +1,18 @@
 import Storage from "@/sunflower/storage";
 
-import type Config from "@/sunflower/config";
 import type Adapter from "@/sunflower/adapter";
+import type Config from "@/sunflower/config";
+import type { Message } from "@/sunflower/adapter/message";
+
+import Instance from "@/sunflower/instance";
 
 export default class Sunflower {
   readonly config: Config;
   readonly storage: Storage;
+
+  private instances: {
+    [key: string]: Instance;
+  } = {};
 
   constructor(config: Config) {
     this.config = config;
@@ -14,6 +21,31 @@ export default class Sunflower {
 
   async init() {
     await this.storage.init();
+  }
+
+  async *generate(
+    platform: string,
+    id: string,
+    message: Message,
+    scene: string,
+    args: any,
+  ) {
+    const instance_id = `${platform}:${id}`;
+
+    if (!(instance_id in this.instances)) {
+      this.instances[instance_id] = new Instance(instance_id, this);
+    }
+
+    yield* this.instances[instance_id]!.generate(message, scene, args);
+  }
+
+  async abort(platform: string, id: string, msg_id: string) {
+    const instance_id = `${platform}:${id}`;
+
+    if (instance_id in this.instances) {
+      const instance = this.instances[instance_id]!;
+      instance.abort(msg_id);
+    }
   }
 
   get_adapter(adapter: string): Adapter | undefined {
