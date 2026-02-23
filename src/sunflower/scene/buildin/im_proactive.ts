@@ -96,6 +96,10 @@ export default class IMProactiveScene extends Scene<IMPromptArgs> {
         await sleep(Math.random() * 1000 + 500);
         yield part;
       }
+
+      if (signal.aborted) {
+        throw new Error("Aborted");
+      }
     }
 
     if (buffer !== "") {
