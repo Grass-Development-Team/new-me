@@ -84,7 +84,11 @@ export default class Instance {
       );
 
       for await (const part of stream) {
-        parts.push(part);
+        if (part.type === "text") {
+          parts.push(part);
+        } else if (part.type === "image" && !part.cached) {
+          // TODO: Cache image
+        }
         yield part;
       }
     } catch (error) {
