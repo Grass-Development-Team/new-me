@@ -4,7 +4,6 @@ import type { Message, MessagePartUnion } from "@/sunflower/adapter/message";
 
 import AddScore from "@/sunflower/tools/buildin/add_score";
 
-import logger from "@/logger";
 import Lock from "@/utils/lock";
 
 const PROMPT = `
@@ -30,6 +29,23 @@ interface UserMessage {
 其中，用户 ID 仅用于区分用户，请不要在任何回答中提及。在元信息后将跟随用户的消息纯文本的形式。
 `;
 
+type InstanceResponse =
+  | {
+      status: "start";
+      data: string;
+    }
+  | {
+      status: "part";
+      data: MessagePartUnion;
+    }
+  | {
+      status: "end";
+    }
+  | {
+      status: "error";
+      data: string;
+    };
+
 export default class Instance {
   id: string;
 
@@ -44,7 +60,11 @@ export default class Instance {
     this.sunflower = sunflower;
   }
 
-  async *generate(message: Message, scene: string, args: any) {
+  async *generate(
+    message: Message,
+    scene: string,
+    args: any,
+  ): AsyncGenerator<InstanceResponse> {
     const scene_obj = this.sunflower.get_scene(scene);
 
     if (!scene_obj) {
@@ -61,7 +81,10 @@ export default class Instance {
     const signal = controller.signal;
     this.running[msg_id] = controller;
 
-    yield msg_id;
+    yield {
+      status: "start",
+      data: msg_id,
+    };
 
     const prompt =
       this.sunflower.config.persona + PROMPT + scene_obj.prompt(args);
@@ -89,10 +112,16 @@ export default class Instance {
         } else if (part.type === "image" && !part.cached) {
           // TODO: Cache image
         }
-        yield part;
+        yield {
+          status: "part",
+          data: part,
+        };
       }
     } catch (error) {
-      logger.error(`Failed to generate message: ${(error as Error).message}`);
+      yield {
+        status: "error",
+        data: `Failed to generate message: ${(error as Error).message}`,
+      };
     } finally {
       this.lock.release();
 
@@ -112,6 +141,10 @@ export default class Instance {
           this.history[scene].shift();
         }
       }
+
+      yield {
+        status: "end",
+      };
     }
   }
 

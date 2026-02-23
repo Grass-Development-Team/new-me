@@ -1,3 +1,5 @@
+import logger from "@/logger";
+
 import Storage from "@/sunflower/storage";
 
 import type Adapter from "@/sunflower/adapter";
@@ -36,7 +38,46 @@ export default class Sunflower {
       this.instances[instance_id] = new Instance(instance_id, this);
     }
 
-    yield* this.instances[instance_id]!.generate(message, scene, args);
+    const stream = this.instances[instance_id]!.generate(message, scene, args);
+
+    let msg_id;
+
+    for await (const part of stream) {
+      yield part;
+
+      if (part.status === "start") {
+        msg_id = part.data;
+        logger.info({
+          instance_id,
+          msg_id,
+          data: "Generation started",
+        });
+      }
+
+      if (part.status === "part") {
+        logger.info({
+          instance_id,
+          msg_id,
+          data: part.data,
+        });
+      }
+
+      if (part.status === "error") {
+        logger.error({
+          instance_id,
+          msg_id,
+          error: part.data,
+        });
+      }
+
+      if (part.status === "end") {
+        logger.info({
+          instance_id,
+          msg_id,
+          data: "Generation ended",
+        });
+      }
+    }
   }
 
   async abort(platform: string, id: string, msg_id: string) {
