@@ -6,7 +6,7 @@ import type Adapter from "@/sunflower/adapter";
 import type Config from "@/sunflower/config";
 import type { Message } from "@/sunflower/adapter/message";
 
-import Instance from "@/sunflower/instance";
+import Instance, { type UserMessageMetadata } from "@/sunflower/instance";
 
 export default class Sunflower {
   readonly config: Config;
@@ -27,30 +27,45 @@ export default class Sunflower {
 
   async *generate(
     platform: string,
-    id: string,
+    platform_sid: string,
+    meta: UserMessageMetadata,
     message: Message,
     scene: string,
     args: any,
   ) {
-    const instance_id = `${platform}:${id}`;
+    const instance_id = `${platform}::${platform_sid}`;
 
     if (!(instance_id in this.instances)) {
-      this.instances[instance_id] = new Instance(instance_id, this);
+      this.instances[instance_id] = new Instance(platform, platform_sid, this);
+      await this.instances[instance_id]!.init();
     }
 
-    const stream = this.instances[instance_id]!.generate(message, scene, args);
+    const stream = this.instances[instance_id]!.generate(
+      meta,
+      message,
+      scene,
+      args,
+    );
 
     let msg_id;
 
     for await (const part of stream) {
       yield part;
 
-      if (part.status === "start") {
+      if (part.status === "queue") {
         msg_id = part.data;
         logger.info({
           instance_id,
           msg_id,
-          data: "Generation started",
+          data: "Message queued",
+        });
+      }
+
+      if (part.status === "start") {
+        logger.info({
+          instance_id,
+          msg_id,
+          data: "Generation start",
         });
       }
 
@@ -74,14 +89,14 @@ export default class Sunflower {
         logger.info({
           instance_id,
           msg_id,
-          data: "Generation ended",
+          data: "Generation end",
         });
       }
     }
   }
 
   async abort(platform: string, id: string, msg_id: string) {
-    const instance_id = `${platform}:${id}`;
+    const instance_id = `${platform}::${id}`;
 
     if (instance_id in this.instances) {
       const instance = this.instances[instance_id]!;

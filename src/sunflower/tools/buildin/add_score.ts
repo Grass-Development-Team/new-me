@@ -20,19 +20,17 @@ export default class AddScore extends Tools {
   };
   required = ["score", "target"];
 
+  private platform: string;
   private sunflower: Sunflower;
 
-  constructor(sunflower: Sunflower) {
+  constructor(platform: string, sunflower: Sunflower) {
     super();
+    this.platform = platform;
     this.sunflower = sunflower;
   }
 
   async call(args: ToolParameters): Promise<string> {
     const { score, target } = args;
-
-    logger.debug(
-      `调用工具 ${this.name}，参数 score: ${score}, target: ${target}`,
-    );
 
     if (typeof score !== "number" || score < -10 || score > 10) {
       return "参数 score 必须是一个数字，且范围在 [-10, 10] 之间";
@@ -42,8 +40,26 @@ export default class AddScore extends Tools {
       return "参数 target 必须是一个非空字符串";
     }
 
-    this.sunflower.get_storage();
-    // TODO: 需要在 storage 中找到对应用户的好感度分数，并增加 score 分数后保存回去
+    const storage = this.sunflower.get_storage();
+
+    const user_data = await storage.get_user(this.platform, target);
+
+    await storage.set_user(this.platform, {
+      ...user_data,
+      score: user_data.score + score,
+    });
+
+    logger.info({
+      platform_id: this.platform,
+      data: {
+        message: `Updated score for user ${target}`,
+        ...args,
+        user: {
+          ...user_data,
+          score: user_data.score + score,
+        },
+      },
+    });
 
     return `已成功将 ${target} 的好感度 ${score > 0 ? "增加" : "减少"} ${Math.abs(score)} 分`;
   }

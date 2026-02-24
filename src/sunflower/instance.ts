@@ -16,7 +16,7 @@ const PROMPT = `
 如果消息和某个用户有关（例如某个用户发送的消息），用户的消息的开头为元信息，包裹在 \`[[meta::start]]\` 和 \`[[meta::end]]\` 之间，元信息为 json 结构体，结构体定义：
 
 \`\`\`typescript
-interface UserMessage {
+interface UserMessageMetadata {
   id: string, // 用户唯一 id
   username: string, // 用户的本名
   nickname: string, // 用户的昵称
@@ -29,7 +29,19 @@ interface UserMessage {
 其中，用户 ID 仅用于区分用户，请不要在任何回答中提及。在元信息后将跟随用户的消息纯文本的形式。
 `;
 
+export interface UserMessageMetadata {
+  id: string;
+  username: string;
+  nickname: string;
+  sex: "male" | "female";
+  time: string;
+}
+
 type InstanceResponse =
+  | {
+      status: "queue";
+      data: string;
+    }
   | {
       status: "start";
       data: string;
@@ -40,6 +52,7 @@ type InstanceResponse =
     }
   | {
       status: "end";
+      data: string;
     }
   | {
       status: "error";
@@ -47,7 +60,10 @@ type InstanceResponse =
     };
 
 export default class Instance {
-  id: string;
+  readonly platform: string;
+  readonly platform_sid: string;
+
+  private readonly id: string;
 
   private sunflower: Sunflower;
   private history: { [key: string]: Message[] } = {};
@@ -55,25 +71,35 @@ export default class Instance {
 
   private lock: Lock = new Lock();
 
-  constructor(id: string, sunflower: Sunflower) {
-    this.id = id;
+  constructor(platform: string, platform_sid: string, sunflower: Sunflower) {
+    this.platform = platform;
+    this.platform_sid = platform_sid;
+    this.id = `${platform}::${platform_sid}`;
     this.sunflower = sunflower;
   }
 
+  async init() {
+    const storage = this.sunflower.get_storage();
+    const data = await storage.get_instance(this.id);
+    if (data.history) {
+      this.history = data.history;
+    }
+  }
+
   async *generate(
+    meta: UserMessageMetadata,
     message: Message,
     scene: string,
     args: any,
   ): AsyncGenerator<InstanceResponse> {
     const scene_obj = this.sunflower.get_scene(scene);
+    const storage = this.sunflower.get_storage();
 
     if (!scene_obj) {
       throw new Error(`场景 ${scene} 不存在`);
     }
 
-    if (!this.history[scene]) {
-      this.history[scene] = [];
-    }
+    const prompt = `${this.sunflower.config.persona}\n${PROMPT}\n${scene_obj.prompt(args)}`;
 
     const msg_id = crypto.randomUUID();
 
@@ -82,26 +108,39 @@ export default class Instance {
     this.running[msg_id] = controller;
 
     yield {
-      status: "start",
+      status: "queue",
       data: msg_id,
     };
 
-    const prompt =
-      this.sunflower.config.persona + PROMPT + scene_obj.prompt(args);
-
     let parts: MessagePartUnion[] = [];
 
+    await this.lock.acquire();
+
+    if (!this.history[scene]) {
+      this.history[scene] = [];
+    }
+
     try {
-      await this.lock.acquire();
+      const user_data = await storage.get_user(this.platform, meta.id);
+
+      yield {
+        status: "start",
+        data: msg_id,
+      };
 
       if (signal.aborted) {
         throw new Error("Generate Aborted");
       }
 
+      message.parts.unshift({
+        type: "text",
+        content: `[[meta::start]]${JSON.stringify({ ...meta, score: user_data.score })}[[meta::end]]`,
+      });
+
       const stream = scene_obj.generate(
         [...this.history[scene], message],
         prompt,
-        [new AddScore(this.sunflower)],
+        [new AddScore(this.platform, this.sunflower)],
         signal,
         this.sunflower,
       );
@@ -112,6 +151,7 @@ export default class Instance {
         } else if (part.type === "image" && !part.cached) {
           // TODO: Cache image
         }
+
         yield {
           status: "part",
           data: part,
@@ -123,8 +163,6 @@ export default class Instance {
         data: `Failed to generate message: ${(error as Error).message}`,
       };
     } finally {
-      this.lock.release();
-
       if (this.running[msg_id] === controller) {
         delete this.running[msg_id];
       }
@@ -142,9 +180,24 @@ export default class Instance {
         }
       }
 
+      await storage.set_instance(this.id, {
+        instance_id: this.id,
+        history: this.history,
+      });
+
+      const user_data = await storage.get_user(this.platform, meta.id);
+
+      await storage.set_user(this.platform, {
+        ...user_data,
+        last_interaction: meta.time,
+      });
+
       yield {
         status: "end",
+        data: msg_id,
       };
+
+      this.lock.release();
     }
   }
 
