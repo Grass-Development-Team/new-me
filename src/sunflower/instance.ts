@@ -37,6 +37,15 @@ export interface UserMessageMetadata {
   time: string;
 }
 
+export type InstanceMeta =
+  | {
+      type: "proactive";
+    }
+  | {
+      type: "reactive";
+      user_meta: UserMessageMetadata;
+    };
+
 type InstanceResponse =
   | {
       status: "queue";
@@ -87,7 +96,7 @@ export default class Instance {
   }
 
   async *generate(
-    meta: UserMessageMetadata,
+    meta: InstanceMeta,
     message: Message,
     scene: string,
     args: any,
@@ -121,8 +130,6 @@ export default class Instance {
     }
 
     try {
-      const user_data = await storage.get_user(this.platform, meta.id);
-
       yield {
         status: "start",
         data: msg_id,
@@ -132,10 +139,17 @@ export default class Instance {
         throw new Error("Generate Aborted");
       }
 
-      message.parts.unshift({
-        type: "text",
-        content: `[[meta::start]]${JSON.stringify({ ...meta, score: user_data.score })}[[meta::end]]`,
-      });
+      if (meta.type === "reactive") {
+        const user_data = await storage.get_user(
+          this.platform,
+          meta.user_meta.id,
+        );
+
+        message.parts.unshift({
+          type: "text",
+          content: `[[meta::start]]${JSON.stringify({ ...meta.user_meta, score: user_data.score })}[[meta::end]]`,
+        });
+      }
 
       const stream = scene_obj.generate(
         [...this.history[scene], message],
@@ -185,12 +199,17 @@ export default class Instance {
         history: this.history,
       });
 
-      const user_data = await storage.get_user(this.platform, meta.id);
+      if (meta.type === "reactive") {
+        const user_data = await storage.get_user(
+          this.platform,
+          meta.user_meta.id,
+        );
 
-      await storage.set_user(this.platform, {
-        ...user_data,
-        last_interaction: meta.time,
-      });
+        await storage.set_user(this.platform, {
+          ...user_data,
+          last_interaction: meta.user_meta.time,
+        });
+      }
 
       yield {
         status: "end",

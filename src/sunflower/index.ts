@@ -6,7 +6,7 @@ import type Adapter from "@/sunflower/adapter";
 import type Config from "@/sunflower/config";
 import type { Message } from "@/sunflower/adapter/message";
 
-import Instance, { type UserMessageMetadata } from "@/sunflower/instance";
+import Instance, { type InstanceMeta } from "@/sunflower/instance";
 
 export default class Sunflower {
   readonly config: Config;
@@ -28,7 +28,7 @@ export default class Sunflower {
   async *generate(
     platform: string,
     platform_sid: string,
-    meta: UserMessageMetadata,
+    meta: InstanceMeta,
     message: Message,
     scene: string,
     args: any,
@@ -95,8 +95,8 @@ export default class Sunflower {
     }
   }
 
-  async abort(platform: string, id: string, msg_id: string) {
-    const instance_id = `${platform}::${id}`;
+  async abort(platform: string, platform_sid: string, msg_id: string) {
+    const instance_id = `${platform}::${platform_sid}`;
 
     if (instance_id in this.instances) {
       const instance = this.instances[instance_id]!;
