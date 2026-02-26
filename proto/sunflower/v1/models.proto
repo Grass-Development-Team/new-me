@@ -56,8 +56,6 @@ message MessagePart {
     string audio = 4;
     string other = 5;
   }
-
-  optional bool cached = 6;
 }
 
 message Message {
