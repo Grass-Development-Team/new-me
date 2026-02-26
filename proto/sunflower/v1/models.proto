@@ -18,14 +18,14 @@ message UserMeta {
 
 message ProactiveMeta {}
 
-message ReactioveMeta {
+message ReactiveMeta {
   UserMeta user = 1;
 }
 
 message Meta {
   oneof payload {
     ProactiveMeta proactive = 1;
-    ReactioveMeta reactive = 2;
+    ReactiveMeta reactive = 2;
   }
 }
 
@@ -36,9 +36,16 @@ enum MessageRole {
   MESSAGE_ROLE_SYSTEM = 3;
 }
 
-message ImageContent {
+message ImageContentRaw {
   string mime = 1;
   string url = 2;
+}
+
+message ImageContent {
+  oneof payload {
+    ImageContentRaw raw = 1;
+    string cache = 2;
+  }
 }
 
 message MessagePart {
