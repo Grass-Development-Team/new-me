@@ -95,7 +95,7 @@ export default class Sunflower {
     }
   }
 
-  async abort(platform: string, platform_sid: string, msg_id: string) {
+  abort(platform: string, platform_sid: string, msg_id: string) {
     const instance_id = `${platform}::${platform_sid}`;
 
     if (instance_id in this.instances) {
