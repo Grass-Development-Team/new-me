@@ -7,7 +7,11 @@ import Route from "./routes";
 import type Sunflower from "@/sunflower";
 import logger from "@/logger";
 
-export default async function serve(sunflower: Sunflower) {
+export default async function serve(
+  host: string,
+  port: number,
+  sunflower: Sunflower,
+) {
   const routes = new Route(sunflower);
 
   const server = fastify({
@@ -20,9 +24,9 @@ export default async function serve(sunflower: Sunflower) {
   });
 
   await server.listen({
-    host: "0.0.0.0",
-    port: 9000,
+    host: host,
+    port: port,
   });
 
-  logger.info("Server is running on port 9000");
+  logger.info(`Server is running on port ${host}:${port}`);
 }

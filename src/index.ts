@@ -37,4 +37,4 @@ const sunflower = new Sunflower(config);
 
 await sunflower.init();
 
-await serve(sunflower);
+await serve("0.0.0.0", 9000, sunflower);
