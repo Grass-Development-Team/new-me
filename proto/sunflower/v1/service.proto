@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package sunflower.v1;
+
+import "google/protobuf/struct.proto";
+import "sunflower/v1/models.proto";
+
+message GenerateRequestContext {
+  string platform = 1;
+  string platform_sid = 2;
+  Meta meta = 3;
+  Message message = 4;
+  string scene = 5;
+  map<string, google.protobuf.Value> args = 6;
+}
+
+message GenerateRequest {
+  oneof payload {
+    GenerateRequestContext context = 1;
+    bool cancel = 2;
+  }
+}
+
+message GenerateResponse {
+  oneof status {
+    string queue = 1;
+    string start = 2;
+    MessagePart part = 3;
+    string end = 4;
+    string error = 5;
+  }
+}
+
+service SunflowerService {
+  rpc Generate(stream GenerateRequest) returns (stream GenerateResponse);
+}

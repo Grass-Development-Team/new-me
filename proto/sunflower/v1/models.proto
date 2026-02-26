@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package sunflower.v1;
+
+enum UserSex {
+  USER_SEX_UNSPECIFIED = 0;
+  USER_SEX_MALE = 1;
+  USER_SEX_FEMALE = 2;
+}
+
+message UserMeta {
+  string id = 1;
+  string username = 2;
+  string nickname = 3;
+  UserSex sex = 4;
+  string time = 5;
+}
+
+message ProactiveMeta {}
+
+message ReactioveMeta {
+  UserMeta user = 1;
+}
+
+message Meta {
+  oneof payload {
+    ProactiveMeta proactive = 1;
+    ReactioveMeta reactive = 2;
+  }
+}
+
+enum MessageRole {
+  MESSAGE_ROLE_UNSPECIFIED = 0;
+  MESSAGE_ROLE_USER = 1;
+  MESSAGE_ROLE_ASSISTANT = 2;
+  MESSAGE_ROLE_SYSTEM = 3;
+}
+
+message ImageContent {
+  string mime = 1;
+  string url = 2;
+}
+
+message MessagePart {
+  oneof type {
+    string text = 1;
+    ImageContent image = 2;
+    string video = 3;
+    string audio = 4;
+    string other = 5;
+  }
+
+  optional bool cached = 6;
+}
+
+message Message {
+  MessageRole role = 1;
+  repeated MessagePart parts = 2;
+}

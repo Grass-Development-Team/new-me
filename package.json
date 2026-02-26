@@ -21,5 +21,9 @@
   },
   "peerDependencies": {
     "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "dev": "bun run gen:buf && bun watch src",
+    "gen:buf": "buf generate"
   }
 }
