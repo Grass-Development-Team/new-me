@@ -4,6 +4,8 @@ import type Config from "@/sunflower/config";
 import Gemini from "@/sunflower/adapter/buildin/gemini";
 import IMScene from "@/sunflower/scene/buildin/im";
 
+import serve from "@/server";
+
 const config: Config = {
   persona: "",
   storage: "data",
@@ -32,3 +34,7 @@ const config: Config = {
 };
 
 const sunflower = new Sunflower(config);
+
+await sunflower.init();
+
+await serve(sunflower);
