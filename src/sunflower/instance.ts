@@ -154,7 +154,9 @@ export default class Instance {
       const stream = scene_obj.generate(
         [...this.history[scene], message],
         prompt,
-        [new AddScore(this.platform, this.sunflower)],
+        meta.type === "reactive"
+          ? [new AddScore(this.platform, this.sunflower)]
+          : [],
         signal,
         this.sunflower,
       );
