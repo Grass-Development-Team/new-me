@@ -18,6 +18,7 @@ import { MessageRole, UserSex } from "./gen/sunflower/v1/models_pb";
 import type Sunflower from "@/sunflower";
 import type { InstanceMeta } from "@/sunflower/instance";
 import type { Message } from "@/sunflower/adapter/message";
+import type { ListValue, Value } from "@bufbuild/protobuf/wkt";
 
 export default class Route {
   private sunflower: Sunflower;
@@ -207,13 +208,7 @@ export default class Route {
     };
 
     // Args
-    const args = context.args
-      ? Object.fromEntries(
-          Object.entries(context.args).map((i) => {
-            return [i[0], i[1].kind.value];
-          }),
-        )
-      : {};
+    const args = context.args ? this.parse_struct(context.args) : {};
 
     return {
       platform: this.ensure(context.platform, "platform"),
@@ -223,6 +218,38 @@ export default class Route {
       scene: this.ensure(context.scene, "scene"),
       args,
     };
+  }
+
+  static parse_list(value: ListValue): any[] {
+    return value.values.map((v) => {
+      if (v.kind.case === "structValue") {
+        return this.parse_struct(v.kind.value.fields);
+      } else if (v.kind.case === "listValue") {
+        return this.parse_list(v.kind.value);
+      } else if (v.kind.case === "nullValue") {
+        return null;
+      } else {
+        return v.kind.value;
+      }
+    });
+  }
+
+  static parse_struct(value: { [key: string]: Value }): {
+    [key: string]: any;
+  } {
+    return Object.fromEntries(
+      Object.entries(value).map((i) => {
+        if (i[1].kind.case === "structValue") {
+          return [i[0], this.parse_struct(i[1].kind.value.fields)];
+        } else if (i[1].kind.case === "listValue") {
+          return [i[0], this.parse_list(i[1].kind.value)];
+        } else if (i[1].kind.case === "nullValue") {
+          return [i[0], null];
+        }
+
+        return [i[0], i[1].kind.value];
+      }),
+    );
   }
 
   static ensure<T>(value: T | undefined, field_name: string): T {
