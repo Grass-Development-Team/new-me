@@ -20,7 +20,7 @@ export default async function serve(
 
   await server.register(fastifyConnectPlugin, {
     interceptors: [createValidateInterceptor()],
-    routes: routes.register,
+    routes: (service) => routes.register(service),
   });
 
   await server.listen({
