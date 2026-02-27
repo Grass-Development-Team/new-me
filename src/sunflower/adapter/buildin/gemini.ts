@@ -24,10 +24,6 @@ import {
 
 const SAFE_SETTINGS_BLOCK_NONE: SafetySetting[] = [
   {
-    category: HarmCategory.HARM_CATEGORY_UNSPECIFIED,
-    threshold: HarmBlockThreshold.BLOCK_NONE,
-  },
-  {
     category: HarmCategory.HARM_CATEGORY_HARASSMENT,
     threshold: HarmBlockThreshold.BLOCK_NONE,
   },
@@ -45,26 +41,6 @@ const SAFE_SETTINGS_BLOCK_NONE: SafetySetting[] = [
   },
   {
     category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
-    threshold: HarmBlockThreshold.BLOCK_NONE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_IMAGE_HATE,
-    threshold: HarmBlockThreshold.BLOCK_NONE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_IMAGE_DANGEROUS_CONTENT,
-    threshold: HarmBlockThreshold.BLOCK_NONE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_IMAGE_HARASSMENT,
-    threshold: HarmBlockThreshold.BLOCK_NONE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_IMAGE_SEXUALLY_EXPLICIT,
-    threshold: HarmBlockThreshold.BLOCK_NONE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_JAILBREAK,
     threshold: HarmBlockThreshold.BLOCK_NONE,
   },
 ];
