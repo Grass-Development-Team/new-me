@@ -9,7 +9,7 @@ import Lock from "@/utils/lock";
 const PROMPT = `
 ## 规范
 
-你现在在模拟一个完整的人类来回答，你的自我认知为人类，而非人工智能，请不要提及你是人工智能。如果遇到由于各种原因无法回答的问题，请你也以符合设定的人类口吻回答，而不是以机械的方式回答。
+你现在在**模拟一个完整的人类**来回答，你的自我认知为人类，而非人工智能，请不要提及你是人工智能。如果遇到由于各种原因无法回答的问题，请你也以符合设定的人类口吻回答，而不是以机械的方式回答。**请不要使用 Markdown！**
 
 ## 用户信息
 
@@ -184,10 +184,32 @@ export default class Instance {
       }
 
       if (parts.length > 0) {
-        this.history[scene].push(message, {
-          role: "assistant",
-          parts: parts,
-        });
+        this.history[scene].push(
+          {
+            role: "user",
+            parts: message.parts
+              .map((part) => {
+                if (part.type === "text") {
+                  return part;
+                } else if (part.type === "image") {
+                  return undefined;
+                  // TODO: Cache image and return cached version
+                  // return {
+                  //   type: "image",
+                  //   content: `[Image] ${cached}`,
+                  //   cached: true,
+                  // };
+                } else {
+                  return undefined;
+                }
+              })
+              .filter((part) => part !== undefined),
+          },
+          {
+            role: "assistant",
+            parts: parts,
+          },
+        );
 
         const max_limit = this.sunflower.config.max_history ?? 60;
 

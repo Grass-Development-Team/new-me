@@ -2,8 +2,6 @@ import Scene from "..";
 
 import { sleep } from "bun";
 
-import logger from "@/logger";
-
 import type Sunflower from "@/sunflower";
 import type Tools from "@/sunflower/tools";
 
