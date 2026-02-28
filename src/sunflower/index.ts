@@ -116,6 +116,12 @@ export default class Sunflower {
     }
   }
 
+  get_instance(instance_id: string) {
+    if (instance_id in this.instances) {
+      return this.instances[instance_id]!;
+    }
+  }
+
   get_storage() {
     return this.storage;
   }

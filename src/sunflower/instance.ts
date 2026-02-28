@@ -250,4 +250,12 @@ export default class Instance {
       delete this.running[msg_id];
     }
   }
+
+  async clear(scene?: string) {
+    if (scene) {
+      delete this.history[scene];
+    } else {
+      this.history = {};
+    }
+  }
 }

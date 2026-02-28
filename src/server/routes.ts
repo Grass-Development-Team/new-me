@@ -146,14 +146,18 @@ export default class Route {
       },
       clearChat: async (req) => {
         const storage = this.sunflower.get_storage();
-        const history = await storage.get_instance(
-          `${req.platform}::${req.platformSid}`,
-        );
+        const instance_id = `${req.platform}::${req.platformSid}`;
+        const history = await storage.get_instance(instance_id);
+        const instance = this.sunflower.get_instance(instance_id);
 
-        if (req.scene) {
-          delete history.history[req.scene];
-        } else {
-          history.history = {};
+        if (instance) {
+          instance.clear(req.scene);
+
+          if (req.scene) {
+            delete history.history[req.scene];
+          } else {
+            history.history = {};
+          }
         }
 
         await storage.set_instance(
