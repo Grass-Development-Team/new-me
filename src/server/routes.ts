@@ -7,11 +7,15 @@ import {
 import { create } from "@bufbuild/protobuf";
 
 import {
+  ClearChatResponseSchema,
   GenerateResponseSchema,
   SunflowerService,
+  UpdateUserResponseSchema,
   type GenerateRequest,
   type GenerateRequestContext,
   type GenerateResponse as GenerateResponseType,
+  type UpdateUserRequest,
+  type UpdateUserResponse,
 } from "./gen/sunflower/v1/service_pb";
 import { MessageRole, UserSex } from "./gen/sunflower/v1/models_pb";
 
@@ -121,6 +125,44 @@ export default class Route {
           }
         }
       }.bind(this),
+      updateUser: async (req) => {
+        const storage = this.sunflower.get_storage();
+        const user = await storage.get_user(req.platform, req.id);
+
+        if (req.score) {
+          await storage.set_user(req.platform, {
+            ...user,
+            score: req.score,
+          });
+
+          user.score = req.score;
+        }
+
+        return create(UpdateUserResponseSchema, {
+          platform: req.platform,
+          id: req.id,
+          score: user.score,
+        });
+      },
+      clearChat: async (req) => {
+        const storage = this.sunflower.get_storage();
+        const history = await storage.get_instance(
+          `${req.platform}::${req.platformSid}`,
+        );
+
+        if (req.scene) {
+          delete history.history[req.scene];
+        } else {
+          history.history = {};
+        }
+
+        await storage.set_instance(
+          `${req.platform}::${req.platformSid}`,
+          history,
+        );
+
+        return create(ClearChatResponseSchema);
+      },
     });
   }
 

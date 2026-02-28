@@ -31,6 +31,28 @@ message GenerateResponse {
   }
 }
 
+message UpdateUserRequest {
+  string platform = 1;
+  string id = 2;
+  optional int32 score = 3;
+}
+
+message UpdateUserResponse {
+  string platform = 1;
+  string id = 2;
+  int32 score = 3;
+}
+
+message ClearChatRequest {
+  string platform = 1;
+  string platform_sid = 2;
+  optional string scene = 3;
+}
+
+message ClearChatResponse {}
+
 service SunflowerService {
   rpc Generate(stream GenerateRequest) returns (stream GenerateResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  rpc ClearChat(ClearChatRequest) returns (ClearChatResponse);
 }
