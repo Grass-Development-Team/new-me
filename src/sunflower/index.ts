@@ -18,7 +18,7 @@ export default class Sunflower {
 
   constructor(config: Config) {
     this.config = config;
-    this.storage = new Storage(config.storage);
+    this.storage = config.storage;
   }
 
   async init() {

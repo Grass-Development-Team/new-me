@@ -1,12 +1,14 @@
 import type Config from "@/sunflower/config";
 
+import LevelDBStorage from "@/sunflower/storage/adapters/leveldb";
+
 import Gemini from "@/sunflower/adapter/buildin/gemini";
 
 import IMScene from "@/sunflower/scene/buildin/im";
 
 const config: Config = {
   persona: "",
-  storage: "data",
+  storage: new LevelDBStorage("data"),
   max_history: 30,
 
   models: {

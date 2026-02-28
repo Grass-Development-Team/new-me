@@ -1,9 +1,10 @@
 import type Adapter from "@/sunflower/adapter";
 import type Scene from "@/sunflower/scene";
+import type Storage from "@/sunflower/storage";
 
 export default interface Config {
   persona: string;
-  storage: string;
+  storage: Storage;
   max_history?: number;
 
   models: ModelsConfig;
