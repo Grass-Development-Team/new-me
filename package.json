@@ -25,7 +25,7 @@
     "typescript": "^5.9.3"
   },
   "scripts": {
-    "serve": "bun run src",
+    "serve": "bun run --watch src",
     "dev": "bun run gen:buf && bun run --watch src",
     "gen:buf": "buf generate"
   }
