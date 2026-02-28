@@ -27,8 +27,11 @@ RUN bun gen:buf
 FROM base AS release
 WORKDIR /app
 
-COPY --from=install /temp/prod/node_modules node_modules
+RUN mkdir -p /app
+RUN cd /app
+
 COPY --from=prerelease /usr/src/app .
+COPY --from=install /temp/prod/node_modules node_modules
 
 VOLUME [ "/app/conf" ]
 
