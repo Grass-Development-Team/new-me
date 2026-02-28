@@ -256,7 +256,16 @@ export default class Instance {
     }
   }
 
+  async abort_all() {
+    for (const msg_id in this.running) {
+      this.running[msg_id]?.abort();
+      delete this.running[msg_id];
+    }
+  }
+
   async clear(scene?: string) {
+    this.abort_all();
+
     if (scene) {
       delete this.history[scene];
     } else {

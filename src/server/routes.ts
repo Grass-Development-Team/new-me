@@ -7,6 +7,7 @@ import {
 import { create } from "@bufbuild/protobuf";
 
 import {
+  AbortResponseSchema,
   ClearChatResponseSchema,
   GenerateResponseSchema,
   SunflowerService,
@@ -125,6 +126,15 @@ export default class Route {
           }
         }
       }.bind(this),
+      abort: async (req) => {
+        if (req.msgId) {
+          await this.sunflower.abort(req.platform, req.platformSid, req.msgId);
+        } else {
+          await this.sunflower.abort_all(req.platform, req.platformSid);
+        }
+
+        return create(AbortResponseSchema);
+      },
       updateUser: async (req) => {
         const storage = this.sunflower.get_storage();
         const user = await storage.get_user(req.platform, req.id);
