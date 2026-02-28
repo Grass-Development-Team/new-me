@@ -1,4 +1,5 @@
 import fastify from "fastify";
+import fs from "fs/promises";
 import { fastifyConnectPlugin } from "@connectrpc/connect-fastify";
 import { createValidateInterceptor } from "@connectrpc/validate";
 
@@ -16,6 +17,10 @@ export default async function serve(
 
   const server = fastify({
     http2: true,
+    https: {
+      key: await fs.readFile("./certs/key.pem", "utf-8"),
+      cert: await fs.readFile("./certs/cert.pem", "utf-8"),
+    },
   });
 
   await server.register(fastifyConnectPlugin, {
