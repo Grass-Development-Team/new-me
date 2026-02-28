@@ -21,14 +21,17 @@ FROM base AS prerelease
 COPY --from=install /temp/dev/node_modules node_modules
 COPY . .
 
+RUN bun gen:buf
+
 # copy production dependencies and source code into final image
 FROM base AS release
+WORKDIR /app
+
 COPY --from=install /temp/prod/node_modules node_modules
 COPY --from=prerelease /usr/src/app .
 
-VOLUME [ "/data" ]
+VOLUME [ "/app/conf" ]
 
 # run the app
-WORKDIR /
-EXPOSE 10000/tcp
-ENTRYPOINT [ "bun", "run", "/usr/src/app/index.ts" ]
+EXPOSE 9000/tcp
+ENTRYPOINT [ "bun", "serve" ]
