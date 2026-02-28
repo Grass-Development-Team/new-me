@@ -51,8 +51,17 @@ message ClearChatRequest {
 
 message ClearChatResponse {}
 
+message AbortRequest {
+  string platform = 1;
+  string platform_sid = 2;
+  optional string msg_id = 3;
+}
+
+message AbortResponse {}
+
 service SunflowerService {
   rpc Generate(stream GenerateRequest) returns (stream GenerateResponse);
+  rpc Abort(AbortRequest) returns (AbortResponse);
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
   rpc ClearChat(ClearChatRequest) returns (ClearChatResponse);
 }
