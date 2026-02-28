@@ -121,7 +121,7 @@ export default class Instance {
       data: msg_id,
     };
 
-    let parts: MessagePartUnion[] = [];
+    let final_msg: string[] = [];
 
     await this.lock.acquire();
 
@@ -163,7 +163,7 @@ export default class Instance {
 
       for await (const part of stream) {
         if (part.type === "text") {
-          parts.push(part);
+          final_msg.push(part.content);
         } else if (part.type === "image" && !part.cached) {
           // TODO: Cache image
         }
@@ -183,7 +183,7 @@ export default class Instance {
         delete this.running[msg_id];
       }
 
-      if (parts.length > 0) {
+      if (final_msg.length > 0) {
         this.history[scene].push(
           {
             role: "user",
@@ -207,7 +207,12 @@ export default class Instance {
           },
           {
             role: "assistant",
-            parts: parts,
+            parts: [
+              {
+                type: "text",
+                content: final_msg.join("[[msg_split]]"),
+              },
+            ],
           },
         );
 
