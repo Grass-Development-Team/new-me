@@ -10,7 +10,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "conf": ["conf/index.ts"],
+      "#/*": ["./*"],
     },
 
     // Bundler mode

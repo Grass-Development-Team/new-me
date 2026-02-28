@@ -2,7 +2,7 @@ import Sunflower from "@/sunflower";
 
 import serve from "@/server";
 
-import config from "conf";
+import config from "#/conf";
 
 const sunflower = new Sunflower(config);
 
