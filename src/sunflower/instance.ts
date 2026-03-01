@@ -249,14 +249,14 @@ export default class Instance {
     }
   }
 
-  async abort(msg_id: string) {
+  abort(msg_id: string) {
     if (this.running[msg_id]) {
       this.running[msg_id].abort();
       delete this.running[msg_id];
     }
   }
 
-  async abort_all() {
+  abort_all() {
     for (const msg_id in this.running) {
       this.running[msg_id]?.abort();
       delete this.running[msg_id];
