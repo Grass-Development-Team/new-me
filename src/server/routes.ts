@@ -15,8 +15,6 @@ import {
   type GenerateRequest,
   type GenerateRequestContext,
   type GenerateResponse as GenerateResponseType,
-  type UpdateUserRequest,
-  type UpdateUserResponse,
 } from "./gen/sunflower/v1/service_pb";
 import { MessageRole, UserSex } from "./gen/sunflower/v1/models_pb";
 
@@ -126,11 +124,11 @@ export default class Route {
           }
         }
       }.bind(this),
-      abort: async (req) => {
+      abort: (req) => {
         if (req.msgId) {
-          await this.sunflower.abort(req.platform, req.platformSid, req.msgId);
+          this.sunflower.abort(req.platform, req.platformSid, req.msgId);
         } else {
-          await this.sunflower.abort_all(req.platform, req.platformSid);
+          this.sunflower.abort_all(req.platform, req.platformSid);
         }
 
         return create(AbortResponseSchema);

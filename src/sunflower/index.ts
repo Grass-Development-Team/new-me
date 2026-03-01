@@ -95,21 +95,21 @@ export default class Sunflower {
     }
   }
 
-  async abort(platform: string, platform_sid: string, msg_id: string) {
+  abort(platform: string, platform_sid: string, msg_id: string) {
     const instance_id = `${platform}::${platform_sid}`;
 
     if (instance_id in this.instances) {
       const instance = this.instances[instance_id]!;
-      await instance.abort(msg_id);
+      instance.abort(msg_id);
     }
   }
 
-  async abort_all(platform: string, platform_sid: string) {
+  abort_all(platform: string, platform_sid: string) {
     const instance_id = `${platform}::${platform_sid}`;
 
     if (instance_id in this.instances) {
       const instance = this.instances[instance_id]!;
-      await instance.abort_all();
+      instance.abort_all();
     }
   }
 
