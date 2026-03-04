@@ -3,11 +3,11 @@ import Scene from "..";
 import { sleep } from "bun";
 
 import type Sunflower from "@/sunflower";
-import type Tools from "@/sunflower/tools";
 
 import type { Message } from "@/sunflower/adapter/message";
 
 import { calc_typing_delay } from "@/utils/typing";
+import type { GenerateOptions } from "@/sunflower/adapter";
 
 interface IMPromptArgs {
   chat_type: "群组" | "私聊";
@@ -52,9 +52,8 @@ export default class IMScene extends Scene<IMPromptArgs> {
   async *generate(
     message: Message[],
     prompt: string,
-    tools: Tools[],
-    signal: AbortSignal,
     sunflower: Sunflower,
+    options?: GenerateOptions,
   ) {
     const adapter = sunflower.get_adapter(this.model.driver);
 
@@ -63,9 +62,8 @@ export default class IMScene extends Scene<IMPromptArgs> {
     }
 
     const stream = adapter.generate_stream(message, {
+      ...options,
       system_prompt: `${prompt}`,
-      signal: signal,
-      tools: tools,
     });
 
     let buffer = "";
@@ -96,7 +94,7 @@ export default class IMScene extends Scene<IMPromptArgs> {
         yield part;
       }
 
-      if (signal.aborted) {
+      if (options?.signal?.aborted) {
         throw new Error("Aborted");
       }
     }

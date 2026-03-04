@@ -1,12 +1,8 @@
 import logger from "@/logger";
-import Adapter from "..";
+import Adapter, { type GenerateOptions } from "..";
 
 import type AdapterConfig from "../config";
-import {
-  type Message,
-  type GenerateOptions,
-  type MessagePartUnion,
-} from "../message";
+import { type Message, type MessagePartUnion } from "../message";
 
 import type Tools from "@/sunflower/tools";
 
@@ -122,7 +118,12 @@ export default class Gemini extends Adapter {
           let tool_response: string = "No tools found";
 
           if (tool) {
-            tool_response = await tool.call(call.args);
+            const res = await tool.call(call.args, options?.tool_context);
+            tool_response = res.result;
+
+            if (res.parts) {
+              final_res.parts.push(...res.parts);
+            }
           }
 
           parts.push({
@@ -202,7 +203,10 @@ export default class Gemini extends Adapter {
             let tool_response: string = "No tools found";
 
             if (tool) {
-              tool_response = await tool.call(call.args);
+              const res = await tool.call(call.args, options?.tool_context);
+              tool_response = res.result;
+
+              yield* res.parts ?? [];
             }
 
             parts.push({
