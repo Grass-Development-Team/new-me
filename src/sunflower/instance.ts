@@ -154,11 +154,17 @@ export default class Instance {
       const stream = scene_obj.generate(
         [...this.history[scene], message],
         prompt,
-        meta.type === "reactive"
-          ? [new AddScore(this.platform, this.sunflower)]
-          : [],
-        signal,
         this.sunflower,
+        {
+          tools: meta.type === "reactive" ? [new AddScore()] : [],
+          tool_context: {
+            sunflower: this.sunflower,
+            instance: this,
+            scene: scene,
+            user: meta.type === "reactive" ? meta.user_meta : undefined,
+          },
+          signal: signal,
+        },
       );
 
       for await (const part of stream) {

@@ -1,7 +1,16 @@
 import type AdapterConfig from "./config";
-import type { GenerateOptions, Message, MessagePartUnion } from "./message";
+import type { Message, MessagePartUnion } from "./message";
 
+import type { ToolContext } from "@/sunflower/tools";
 import type Tools from "@/sunflower/tools";
+
+export interface GenerateOptions {
+  system_prompt?: string;
+  model?: string;
+  signal?: AbortSignal;
+  tools?: Tools[];
+  tool_context?: ToolContext;
+}
 
 export default abstract class Adapter {
   /**

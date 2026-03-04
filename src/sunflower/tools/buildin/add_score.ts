@@ -1,6 +1,9 @@
-import Tools, { type ToolParameters } from "..";
+import Tools, {
+  type ToolContext,
+  type ToolParameters,
+  type ToolResponse,
+} from "..";
 
-import type Sunflower from "@/sunflower";
 import logger from "@/logger";
 
 export default class AddScore extends Tools {
@@ -20,37 +23,28 @@ export default class AddScore extends Tools {
   };
   required = ["score", "target"];
 
-  private platform: string;
-  private sunflower: Sunflower;
-
-  constructor(platform: string, sunflower: Sunflower) {
-    super();
-    this.platform = platform;
-    this.sunflower = sunflower;
-  }
-
-  async call(args: ToolParameters): Promise<string> {
+  async call(args: ToolParameters, ctx: ToolContext): Promise<ToolResponse> {
     const { score, target } = args;
 
     if (typeof score !== "number" || score < -10 || score > 10) {
-      return "参数 score 必须是一个数字，且范围在 [-10, 10] 之间";
+      return { result: "参数 score 必须是一个数字，且范围在 [-10, 10] 之间" };
     }
 
     if (typeof target !== "string" || target.trim() === "") {
-      return "参数 target 必须是一个非空字符串";
+      return { result: "参数 target 必须是一个非空字符串" };
     }
 
-    const storage = this.sunflower.get_storage();
+    const storage = ctx.sunflower.get_storage();
 
-    const user_data = await storage.get_user(this.platform, target);
+    const user_data = await storage.get_user(ctx.instance.platform, target);
 
-    await storage.set_user(this.platform, {
+    await storage.set_user(ctx.instance.platform, {
       ...user_data,
       score: user_data.score + score,
     });
 
     logger.info({
-      platform_id: this.platform,
+      platform_id: ctx.instance.platform,
       data: {
         message: `Updated score for user ${target}`,
         ...args,
@@ -61,6 +55,8 @@ export default class AddScore extends Tools {
       },
     });
 
-    return `已成功将 ${target} 的好感度 ${score > 0 ? "增加" : "减少"} ${Math.abs(score)} 分`;
+    return {
+      result: `已成功将 ${target} 的好感度 ${score > 0 ? "增加" : "减少"} ${Math.abs(score)} 分`,
+    };
   }
 }
