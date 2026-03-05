@@ -92,6 +92,7 @@ export default class GenerateImageTool extends Tools {
           },
         ],
         {
+          model: model.model,
           system_prompt: PROMPT + sunflower.config.persona,
         },
       );
