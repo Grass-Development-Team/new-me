@@ -156,6 +156,7 @@ export default class Instance {
         prompt,
         this.sunflower,
         {
+          model: scene_obj.model.model,
           tools: meta.type === "reactive" ? [new AddScore()] : [],
           tool_context: {
             sunflower: this.sunflower,
