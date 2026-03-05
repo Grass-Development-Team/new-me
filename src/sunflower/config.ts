@@ -1,5 +1,6 @@
 import type Adapter from "@/sunflower/adapter";
 import type Scene from "@/sunflower/scene";
+import type Tools from "@/sunflower/tools";
 
 export default interface Config {
   persona: string;
@@ -9,6 +10,7 @@ export default interface Config {
   models: ModelsConfig;
   drivers: { [key: string]: Adapter };
   scenes: { [key: string]: Scene };
+  tools: Tools[];
 }
 
 export interface ModelsConfig {

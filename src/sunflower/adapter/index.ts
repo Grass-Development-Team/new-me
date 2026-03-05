@@ -21,10 +21,6 @@ export default abstract class Adapter {
    * The configuration for the adapter. This should include all necessary information for connecting to the API, such as API keys, base URLs, model names, and system prompts.
    */
   abstract config: AdapterConfig;
-  /**
-   * The tools that the adapter supports. This should be an array of Tool objects that represent the different tools or capabilities that the adapter can use when generating responses. Each tool should have a name, description, and a function that defines how to use the tool.
-   */
-  abstract tools: Tools[];
 
   /**
    * Generates a response based on the given message. This method should take a Message object as input and return a Response object. The implementation of this method will depend on the specific API being used, but it should handle the logic for sending the message to the API and processing the response.
@@ -43,6 +39,6 @@ export default abstract class Adapter {
    */
   abstract generate_stream(
     message: Message[],
-    options: GenerateOptions,
+    options?: GenerateOptions,
   ): AsyncGenerator<MessagePartUnion>;
 }

@@ -45,15 +45,13 @@ export default class Gemini extends Adapter {
   id: string = "gemini";
 
   config: AdapterConfig;
-  tools: Tools[] = [];
 
   private client: GoogleGenAI;
 
-  constructor(config: AdapterConfig, tools: Tools[] = []) {
+  constructor(config: AdapterConfig) {
     super();
 
     this.config = config;
-    this.tools = tools;
 
     this.client = new GoogleGenAI({
       apiKey: config.api_key,
@@ -68,7 +66,7 @@ export default class Gemini extends Adapter {
     options?: GenerateOptions,
   ): Promise<Message> {
     const contents = this.message_to_content(message);
-    const functions = [...this.tools, ...(options?.tools ?? [])];
+    const functions = options?.tools ?? [];
     const tools: ToolListUnion = [
       {
         googleSearch: {},
@@ -169,7 +167,7 @@ export default class Gemini extends Adapter {
     options?: GenerateOptions,
   ): AsyncGenerator<MessagePartUnion> {
     const contents = this.message_to_content(message);
-    const functions = [...this.tools, ...(options?.tools ?? [])];
+    const functions = options?.tools ?? [];
     const tools: ToolListUnion = [
       {
         googleSearch: {},
