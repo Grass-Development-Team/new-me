@@ -278,4 +278,8 @@ export default class Instance {
       this.history = {};
     }
   }
+
+  get_history(scene: string) {
+    return this.history[scene];
+  }
 }
