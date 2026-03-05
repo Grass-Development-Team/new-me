@@ -99,6 +99,11 @@ export default class GenerateImageTool extends Tools {
       for await (const part of stream) {
         if (part.type === "image") {
           parts.push(part);
+        } else {
+          logger.warn({
+            message: "Received non-image part from image generation stream",
+            part,
+          });
         }
       }
     } catch (error) {
@@ -112,12 +117,11 @@ export default class GenerateImageTool extends Tools {
       };
     }
 
-    logger.debug({
+    logger.info({
       platform_id: ctx?.instance.platform,
       data: {
         message: "Finished calling generate_image tool",
         description,
-        result: "OK",
         parts,
       },
     });
