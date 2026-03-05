@@ -68,12 +68,6 @@ export default class Gemini extends Adapter {
     const contents = this.message_to_content(message);
     const functions = options?.tools ?? [];
     const tools: ToolListUnion = [
-      {
-        googleSearch: {},
-      },
-      {
-        urlContext: {},
-      },
       functions.length > 0
         ? {
             functionDeclarations: this.tools_to_gemini_tools(functions),
@@ -169,12 +163,6 @@ export default class Gemini extends Adapter {
     const contents = this.message_to_content(message);
     const functions = options?.tools ?? [];
     const tools: ToolListUnion = [
-      {
-        googleSearch: {},
-      },
-      {
-        urlContext: {},
-      },
       functions.length > 0
         ? { functionDeclarations: this.tools_to_gemini_tools(functions) }
         : undefined,
