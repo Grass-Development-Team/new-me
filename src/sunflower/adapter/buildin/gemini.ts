@@ -100,16 +100,18 @@ export default class Gemini extends Adapter {
         parts: [],
       };
 
-      const content = res.candidates![0]?.content;
+      const candidate = res.candidates?.[0];
 
-      if (!content) {
+      if (!candidate?.content) {
         throw new Error("No content generated");
       }
+
+      const content = candidate.content;
 
       final_res.parts.push(...this.content_to_message(content).parts);
 
       if (res.functionCalls) {
-        contents.push(res.candidates![0]!.content!);
+        contents.push(candidate.content);
         let parts: Part[] = [];
 
         for (const call of res.functionCalls) {
@@ -118,12 +120,26 @@ export default class Gemini extends Adapter {
           let tool_response: string = "No tools found";
 
           if (tool) {
-            const res = await tool.call(call.args, options?.tool_context);
-            tool_response = res.result;
+            try {
+              const res = await tool.call(call.args, options?.tool_context);
+              tool_response =
+                typeof res?.result === "string"
+                  ? res.result
+                  : "Tool returned invalid response";
 
-            if (res.parts) {
-              final_res.parts.push(...res.parts);
+              if (Array.isArray(res?.parts)) {
+                final_res.parts.push(...res.parts);
+              }
+            } catch (error) {
+              logger.error({
+                message: "Tool execution failed",
+                tool: call.name,
+                error: error instanceof Error ? error.message : String(error),
+              });
+              tool_response = `Tool ${call.name} failed`;
             }
+          } else {
+            tool_response = `Tool ${call.name} not found`;
           }
 
           parts.push({
@@ -190,7 +206,14 @@ export default class Gemini extends Adapter {
         logger.debug("Received part:", part);
 
         if (part.functionCalls) {
-          message.push(...part.candidates![0]!.content!.parts!);
+          const callContent = part.candidates?.[0]?.content;
+
+          if (!callContent?.parts) {
+            logger.warn("Function call chunk missing content parts");
+          } else {
+            message.push(...callContent.parts);
+          }
+
           contents.push({
             role: "model",
             parts: message,
@@ -203,10 +226,26 @@ export default class Gemini extends Adapter {
             let tool_response: string = "No tools found";
 
             if (tool) {
-              const res = await tool.call(call.args, options?.tool_context);
-              tool_response = res.result;
+              try {
+                const res = await tool.call(call.args, options?.tool_context);
+                tool_response =
+                  typeof res?.result === "string"
+                    ? res.result
+                    : "Tool returned invalid response";
 
-              yield* res.parts ?? [];
+                if (Array.isArray(res?.parts)) {
+                  yield* res.parts;
+                }
+              } catch (error) {
+                logger.error({
+                  message: "Tool execution failed",
+                  tool: call.name,
+                  error: error instanceof Error ? error.message : String(error),
+                });
+                tool_response = `Tool ${call.name} failed`;
+              }
+            } else {
+              tool_response = `Tool ${call.name} not found`;
             }
 
             parts.push({
