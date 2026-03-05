@@ -8,7 +8,7 @@ import type { GenerateOptions } from "../adapter";
 export default abstract class Scene<T = any> {
   abstract readonly scene: string;
 
-  protected readonly model: ModelConfig;
+  readonly model: ModelConfig;
 
   constructor(model: ModelConfig) {
     this.model = model;
