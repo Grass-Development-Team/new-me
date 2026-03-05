@@ -22,6 +22,7 @@ import type Sunflower from "@/sunflower";
 import type { InstanceMeta } from "@/sunflower/instance";
 import type { Message } from "@/sunflower/adapter/message";
 import type { ListValue, Value } from "@bufbuild/protobuf/wkt";
+import logger from "@/logger";
 
 export default class Route {
   private sunflower: Sunflower;
@@ -160,12 +161,12 @@ export default class Route {
 
         if (instance) {
           instance.clear(req.scene);
+        }
 
-          if (req.scene) {
-            delete history.history[req.scene];
-          } else {
-            history.history = {};
-          }
+        if (req.scene) {
+          delete history.history[req.scene];
+        } else {
+          history.history = {};
         }
 
         await storage.set_instance(
