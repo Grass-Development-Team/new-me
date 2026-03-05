@@ -113,11 +113,6 @@ export default class GenerateImageTool extends Tools {
       for await (const part of stream) {
         if (part.type === "image") {
           parts.push(part);
-        } else {
-          logger.warn({
-            message: "Received non-image part from image generation stream",
-            part,
-          });
         }
       }
     } catch (error) {

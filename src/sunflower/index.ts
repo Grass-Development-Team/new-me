@@ -70,11 +70,19 @@ export default class Sunflower {
       }
 
       if (part.status === "part") {
-        logger.info({
-          instance_id,
-          msg_id,
-          data: part.data,
-        });
+        if (part.data.type === "image") {
+          logger.info({
+            instance_id,
+            msg_id,
+            data: "Received image part",
+          });
+        } else {
+          logger.info({
+            instance_id,
+            msg_id,
+            data: part.data,
+          });
+        }
       }
 
       if (part.status === "error") {
