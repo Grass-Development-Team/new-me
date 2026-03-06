@@ -68,7 +68,6 @@ export default class Gemini extends Adapter {
     message: Message[],
     options?: GenerateOptions,
   ): Promise<Message> {
-    const contents = this.message_to_content(message);
     const functions = options?.tools ?? [];
     // TODO: Gemini Buildin Tools
     const tools: ToolListUnion =
@@ -76,96 +75,100 @@ export default class Gemini extends Adapter {
         ? [{ functionDeclarations: this.tools_to_gemini_tools(functions) }]
         : [];
 
-    const generate = async (contents: Content[]) => {
-      const res = await this.client.models.generateContent({
-        model: options?.model ?? this.config.model,
-        contents: contents,
-        config: {
-          abortSignal: options?.signal,
-          systemInstruction:
-            options?.system_prompt ?? this.config.system_prompt,
-          safetySettings: SAFE_SETTINGS_BLOCK_NONE,
-          tools: tools,
-        },
-      });
-      const final_res: Message = {
-        role: "assistant",
-        parts: [],
-      };
+    const run = async (signal: AbortSignal): Promise<Message> => {
+      const contents = this.message_to_content(message);
 
-      const candidate = res.candidates?.[0];
-
-      if (!candidate?.content) {
-        throw new Error("No content generated");
-      }
-
-      const content = candidate.content;
-      const model_parts = [...(content.parts ?? [])];
-
-      final_res.parts.push(...this.content_to_message(content).parts);
-
-      if (res.functionCalls?.length) {
-        contents.push({
-          role: "model",
-          parts: [...model_parts],
+      const generate = async (contents: Content[]): Promise<Message> => {
+        const res = await this.client.models.generateContent({
+          model: options?.model ?? this.config.model,
+          contents: contents,
+          config: {
+            abortSignal: signal,
+            systemInstruction: options?.system_prompt ?? this.config.system_prompt,
+            safetySettings: SAFE_SETTINGS_BLOCK_NONE,
+            tools: tools,
+          },
         });
-        const parts: Part[] = [];
+        const final_res: Message = {
+          role: "assistant",
+          parts: [],
+        };
 
-        for (const call of res.functionCalls) {
-          const tool = functions.find((tool) => tool.name === call.name);
+        const candidate = res.candidates?.[0];
 
-          let tool_response: string = "No tools found";
-
-          if (tool) {
-            try {
-              const res = await tool.call(call.args, options?.tool_context);
-              tool_response =
-                typeof res?.result === "string"
-                  ? res.result
-                  : "Tool returned invalid response";
-
-              if (Array.isArray(res?.parts)) {
-                final_res.parts.push(...res.parts);
-              }
-            } catch (error) {
-              logger.error({
-                message: "Tool execution failed",
-                tool: call.name,
-                error: error instanceof Error ? error.message : String(error),
-              });
-              tool_response = `Tool ${call.name} failed`;
-            }
-          } else {
-            tool_response = `Tool ${call.name} not found`;
-          }
-
-          parts.push({
-            functionResponse: {
-              name: call.name,
-              response: { result: tool_response },
-            },
-          });
+        if (!candidate?.content) {
+          throw new Error("No content generated");
         }
 
-        contents.push({
-          role: "user",
-          parts: [...parts],
-        });
+        const content = candidate.content;
+        const model_parts = [...(content.parts ?? [])];
 
-        final_res.parts.push(...(await generate(contents)).parts);
-      }
+        final_res.parts.push(...this.content_to_message(content).parts);
 
-      return final_res;
+        if (res.functionCalls?.length) {
+          contents.push({
+            role: "model",
+            parts: [...model_parts],
+          });
+          const parts: Part[] = [];
+
+          for (const call of res.functionCalls) {
+            const tool = functions.find((tool) => tool.name === call.name);
+
+            let tool_response: string = "No tools found";
+
+            if (tool) {
+              try {
+                const res = await tool.call(call.args, options?.tool_context);
+                tool_response =
+                  typeof res?.result === "string"
+                    ? res.result
+                    : "Tool returned invalid response";
+
+                if (Array.isArray(res?.parts)) {
+                  final_res.parts.push(...res.parts);
+                }
+              } catch (error) {
+                logger.error({
+                  message: "Tool execution failed",
+                  tool: call.name,
+                  error: error instanceof Error ? error.message : String(error),
+                });
+                tool_response = `Tool ${call.name} failed`;
+              }
+            } else {
+              tool_response = `Tool ${call.name} not found`;
+            }
+
+            parts.push({
+              functionResponse: {
+                name: call.name,
+                response: { result: tool_response },
+              },
+            });
+          }
+
+          contents.push({
+            role: "user",
+            parts: [...parts],
+          });
+
+          final_res.parts.push(...(await generate(contents)).parts);
+        }
+
+        return final_res;
+      };
+
+      return generate(contents);
     };
 
-    return generate(contents);
+    return this.execute_with_retry(({ signal }) => run(signal), options);
   }
 
   async *generate_stream(
     message: Message[],
     options?: GenerateOptions,
   ): AsyncGenerator<MessagePartUnion> {
-    const contents = this.message_to_content(message);
     const functions = options?.tools ?? [];
     // TODO: Gemini Buildin Tools
     const tools: ToolListUnion =
@@ -173,105 +176,112 @@ export default class Gemini extends Adapter {
         ? [{ functionDeclarations: this.tools_to_gemini_tools(functions) }]
         : [];
 
-    const generate = async function* (
-      client: GoogleGenAI,
-      config: AdapterConfig,
-      all_tools: Tools[],
-      contents: Content[],
-    ): AsyncGenerator<MessagePartUnion> {
-      logger.debug("Send generate request:", contents);
+    yield* this.execute_stream_with_retry(
+      ({ signal }) => {
+        const contents = this.message_to_content(message);
 
-      const res = await client.models.generateContentStream({
-        model: options?.model ?? config.model,
-        contents: contents,
-        config: {
-          abortSignal: options?.signal,
-          systemInstruction: options?.system_prompt ?? config.system_prompt,
-          safetySettings: SAFE_SETTINGS_BLOCK_NONE,
-          tools: tools,
-        },
-      });
-      const message: Part[] = [];
+        const generate = async function* (
+          client: GoogleGenAI,
+          config: AdapterConfig,
+          all_tools: Tools[],
+          contents: Content[],
+        ): AsyncGenerator<MessagePartUnion> {
+          logger.debug("Send generate request:", contents);
 
-      for await (const chunk of res) {
-        logger.debug("Received part:", chunk);
-
-        const content = chunk.candidates?.[0]?.content;
-
-        if (content) {
-          for (const content_part of content.parts ?? []) {
-            const msg_part = Gemini.prototype.part_to_message_part(content_part);
-
-            if (msg_part) {
-              message.push(content_part);
-              yield msg_part;
-            } else if (content_part.functionCall) {
-              message.push(content_part);
-            }
-          }
-        }
-
-        if (!chunk.functionCalls?.length) {
-          continue;
-        }
-
-        if (!content?.parts) {
-          logger.warn("Function call chunk missing content parts");
-        }
-
-        contents.push({
-          role: "model",
-          parts: [...message],
-        });
-        const parts: Part[] = [];
-
-        for (const call of chunk.functionCalls) {
-          const tool = all_tools.find((tool) => tool.name === call.name);
-
-          let tool_response: string = "No tools found";
-
-          if (tool) {
-            try {
-              const res = await tool.call(call.args, options?.tool_context);
-              tool_response =
-                typeof res?.result === "string"
-                  ? res.result
-                  : "Tool returned invalid response";
-
-              if (Array.isArray(res?.parts)) {
-                for (const part of res.parts) yield part;
-              }
-            } catch (error) {
-              logger.error({
-                message: "Tool execution failed",
-                tool: call.name,
-                error: error instanceof Error ? error.message : String(error),
-              });
-              tool_response = `Tool ${call.name} failed`;
-            }
-          } else {
-            tool_response = `Tool ${call.name} not found`;
-          }
-
-          parts.push({
-            functionResponse: {
-              name: call.name,
-              response: { result: tool_response },
+          const res = await client.models.generateContentStream({
+            model: options?.model ?? config.model,
+            contents: contents,
+            config: {
+              abortSignal: signal,
+              systemInstruction: options?.system_prompt ?? config.system_prompt,
+              safetySettings: SAFE_SETTINGS_BLOCK_NONE,
+              tools: tools,
             },
           });
-        }
+          const message: Part[] = [];
 
-        contents.push({
-          role: "user",
-          parts: parts,
-        });
+          for await (const chunk of res) {
+            logger.debug("Received part:", chunk);
 
-        yield* generate(client, config, all_tools, contents);
-        return;
-      }
-    };
+            const content = chunk.candidates?.[0]?.content;
 
-    yield* generate(this.client, this.config, functions, contents);
+            if (content) {
+              for (const content_part of content.parts ?? []) {
+                const msg_part = Gemini.prototype.part_to_message_part(content_part);
+
+                if (msg_part) {
+                  message.push(content_part);
+                  yield msg_part;
+                } else if (content_part.functionCall) {
+                  message.push(content_part);
+                }
+              }
+            }
+
+            if (!chunk.functionCalls?.length) {
+              continue;
+            }
+
+            if (!content?.parts) {
+              logger.warn("Function call chunk missing content parts");
+            }
+
+            contents.push({
+              role: "model",
+              parts: [...message],
+            });
+            const parts: Part[] = [];
+
+            for (const call of chunk.functionCalls) {
+              const tool = all_tools.find((tool) => tool.name === call.name);
+
+              let tool_response: string = "No tools found";
+
+              if (tool) {
+                try {
+                  const res = await tool.call(call.args, options?.tool_context);
+                  tool_response =
+                    typeof res?.result === "string"
+                      ? res.result
+                      : "Tool returned invalid response";
+
+                  if (Array.isArray(res?.parts)) {
+                    for (const part of res.parts) yield part;
+                  }
+                } catch (error) {
+                  logger.error({
+                    message: "Tool execution failed",
+                    tool: call.name,
+                    error: error instanceof Error ? error.message : String(error),
+                  });
+                  tool_response = `Tool ${call.name} failed`;
+                }
+              } else {
+                tool_response = `Tool ${call.name} not found`;
+              }
+
+              parts.push({
+                functionResponse: {
+                  name: call.name,
+                  response: { result: tool_response },
+                },
+              });
+            }
+
+            contents.push({
+              role: "user",
+              parts: parts,
+            });
+
+            yield* generate(client, config, all_tools, contents);
+            return;
+          }
+        };
+
+        return generate(this.client, this.config, functions, contents);
+      },
+      options,
+    );
   }
 
   message_to_content(message: Message[]): Content[] {
