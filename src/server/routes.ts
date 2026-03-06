@@ -138,7 +138,7 @@ export default class Route {
         const storage = this.sunflower.get_storage();
         const user = await storage.get_user(req.platform, req.id);
 
-        if (req.score) {
+        if (req.score !== undefined) {
           await storage.set_user(req.platform, {
             ...user,
             score: req.score,
