@@ -231,7 +231,7 @@ export default class OpenAI extends Adapter {
             content_parts.push({
               type: "image_url",
               image_url: {
-                url: part.content.url,
+                url: `data:${part.content.mime};base64,${part.content.url}`,
                 detail: "auto",
               },
             });
