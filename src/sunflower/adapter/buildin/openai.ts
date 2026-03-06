@@ -3,6 +3,7 @@ import Adapter, { type GenerateOptions } from "..";
 import type AdapterConfig from "../config";
 import { type Message, type MessagePartUnion } from "../message";
 import type Tools from "@/sunflower/tools";
+import type { ToolParameters, ToolParameterSchema } from "@/sunflower/tools";
 
 import OpenAIClient from "openai";
 import type {
@@ -367,13 +368,80 @@ export default class OpenAI extends Adapter {
       function: {
         name: tool.name,
         description: tool.description,
-        parameters: {
-          type: "object",
-          properties: tool.parameters ?? {},
-          required: tool.required ?? [],
-        },
+        parameters: this.parameters_to_openai_schema(
+          tool.parameters ?? {},
+          tool.required,
+        ),
       },
     }));
+  }
+
+  private parameters_to_openai_schema(
+    parameters: ToolParameters,
+    required?: string[],
+  ): Record<string, unknown> {
+    return {
+      type: "object",
+      properties: Object.fromEntries(
+        Object.entries(parameters).map(([key, schema]) => [
+          key,
+          this.schema_to_openai(schema),
+        ]),
+      ),
+      ...(required?.length ? { required } : {}),
+    };
+  }
+
+  private schema_to_openai(
+    schema: ToolParameterSchema,
+  ): Record<string, unknown> {
+    const base: Record<string, unknown> = {
+      ...(schema.description !== undefined
+        ? { description: schema.description }
+        : {}),
+      ...(schema.nullable !== undefined ? { nullable: schema.nullable } : {}),
+    };
+
+    switch (schema.type) {
+      case "string":
+        return {
+          type: "string",
+          ...base,
+          ...(schema.enum?.length ? { enum: schema.enum } : {}),
+        };
+
+      case "number":
+      case "integer":
+        return {
+          type: schema.type,
+          ...base,
+          ...(schema.minimum !== undefined ? { minimum: schema.minimum } : {}),
+          ...(schema.maximum !== undefined ? { maximum: schema.maximum } : {}),
+        };
+
+      case "boolean":
+        return { type: "boolean", ...base };
+
+      case "array":
+        return {
+          type: "array",
+          ...base,
+          items: this.schema_to_openai(schema.items),
+        };
+
+      case "object":
+        return {
+          type: "object",
+          ...base,
+          properties: Object.fromEntries(
+            Object.entries(schema.properties).map(([key, s]) => [
+              key,
+              this.schema_to_openai(s),
+            ]),
+          ),
+          ...(schema.required?.length ? { required: schema.required } : {}),
+        };
+    }
   }
 
   content_to_message_parts(

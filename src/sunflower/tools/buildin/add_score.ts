@@ -1,8 +1,4 @@
-import Tools, {
-  type ToolContext,
-  type ToolParameters,
-  type ToolResponse,
-} from "..";
+import Tools, { type ToolContext, type ToolResponse } from "..";
 
 import logger from "@/logger";
 
@@ -12,18 +8,23 @@ export default class AddScore extends Tools {
     "该工具用于在用户的好感度上增加或减少一定的分数。在主动聊天的会话中（存在用户元数据）都应该执行一次该工具，哪怕添加和减少的好感度为 0。在使用该工具前后请不要告知用户，也不要在任何时候以任何形式透露用户的好感度分数。在回复过程中，如果遇到了其他历史用户你认为需要调整好感度的情况，也请调用该工具进行调整。";
   parameters = {
     score: {
-      type: "NUMBER",
+      type: "number" as const,
       description:
         "需要增加或减少的分数，范围在 [-10, 10] 之间。如果用户的好感度小于 -20，则范围在 [0, 10] 之间。若用户的好感度大于 120，则范围在 [-5, 0] 之间。",
+      minimum: -10,
+      maximum: 10,
     },
     target: {
-      type: "STRING",
+      type: "string" as const,
       description: "表示需要增加或减少好感度的目标对象 ID。",
     },
   };
   required = ["score", "target"];
 
-  async call(args: ToolParameters, ctx: ToolContext): Promise<ToolResponse> {
+  async call(
+    args: { [key: string]: any },
+    ctx: ToolContext,
+  ): Promise<ToolResponse> {
     const { score, target } = args;
 
     if (typeof score !== "number" || score < -10 || score > 10) {
