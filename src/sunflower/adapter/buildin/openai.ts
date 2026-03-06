@@ -45,7 +45,10 @@ export default class OpenAI extends Adapter {
     message: Message[],
     options?: GenerateOptions,
   ): Promise<Message> {
-    const run = async (signal: AbortSignal): Promise<Message> => {
+    const run = async (
+      signal: AbortSignal,
+      mark_side_effect: () => void,
+    ): Promise<Message> => {
       const messages = this.messages_to_content(message, options);
 
       const generate = async (
@@ -100,7 +103,13 @@ export default class OpenAI extends Adapter {
             if (tool) {
               try {
                 const args = args_str ? JSON.parse(args_str) : {};
-                const res = await tool.call(args, options?.tool_context);
+                mark_side_effect();
+                const res = await this.call_tool(
+                  tool,
+                  args,
+                  options?.tool_context,
+                  signal,
+                );
 
                 tool_response =
                   typeof res?.result === "string"
@@ -111,6 +120,10 @@ export default class OpenAI extends Adapter {
                   final_res.parts.push(...res.parts);
                 }
               } catch (error) {
+                if (signal.aborted) {
+                  throw error;
+                }
+
                 logger.error({
                   message: "Tool execution failed",
                   tool: name,
@@ -143,7 +156,10 @@ export default class OpenAI extends Adapter {
       return generate(messages);
     };
 
-    return this.execute_with_retry(({ signal }) => run(signal), options);
+    return this.execute_with_retry(
+      ({ signal, mark_side_effect }) => run(signal, mark_side_effect),
+      options,
+    );
   }
 
   async *generate_stream(
@@ -151,7 +167,7 @@ export default class OpenAI extends Adapter {
     options?: GenerateOptions,
   ): AsyncGenerator<MessagePartUnion> {
     yield* this.execute_stream_with_retry(
-      ({ signal }) => {
+      ({ signal, mark_side_effect }) => {
         const messages = this.messages_to_content(message, options);
 
         const generate_stream = async function* (
@@ -239,7 +255,13 @@ export default class OpenAI extends Adapter {
               if (tool) {
                 try {
                   const args = args_str ? JSON.parse(args_str) : {};
-                  const res = await tool.call(args, options?.tool_context);
+                  mark_side_effect();
+                  const res = await adapter.call_tool(
+                    tool,
+                    args,
+                    options?.tool_context,
+                    signal,
+                  );
 
                   tool_response =
                     typeof res?.result === "string"
@@ -250,6 +272,10 @@ export default class OpenAI extends Adapter {
                     for (const part of res.parts) yield part;
                   }
                 } catch (error) {
+                  if (signal.aborted) {
+                    throw error;
+                  }
+
                   logger.error({
                     message: "Tool execution failed",
                     tool: name,

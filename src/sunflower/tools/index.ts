@@ -9,6 +9,7 @@ export interface ToolContext {
   instance: Instance;
   scene: string;
   user?: UserMessageMetadata;
+  signal?: AbortSignal;
 }
 
 export interface ToolResponse {

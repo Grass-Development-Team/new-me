@@ -75,7 +75,10 @@ export default class Gemini extends Adapter {
         ? [{ functionDeclarations: this.tools_to_gemini_tools(functions) }]
         : [];
 
-    const run = async (signal: AbortSignal): Promise<Message> => {
+    const run = async (
+      signal: AbortSignal,
+      mark_side_effect: () => void,
+    ): Promise<Message> => {
       const contents = this.message_to_content(message);
 
       const generate = async (contents: Content[]): Promise<Message> => {
@@ -119,7 +122,13 @@ export default class Gemini extends Adapter {
 
             if (tool) {
               try {
-                const res = await tool.call(call.args, options?.tool_context);
+                mark_side_effect();
+                const res = await this.call_tool(
+                  tool,
+                  call.args ?? {},
+                  options?.tool_context,
+                  signal,
+                );
                 tool_response =
                   typeof res?.result === "string"
                     ? res.result
@@ -129,6 +138,10 @@ export default class Gemini extends Adapter {
                   final_res.parts.push(...res.parts);
                 }
               } catch (error) {
+                if (signal.aborted) {
+                  throw error;
+                }
+
                 logger.error({
                   message: "Tool execution failed",
                   tool: call.name,
@@ -162,7 +175,10 @@ export default class Gemini extends Adapter {
       return generate(contents);
     };
 
-    return this.execute_with_retry(({ signal }) => run(signal), options);
+    return this.execute_with_retry(
+      ({ signal, mark_side_effect }) => run(signal, mark_side_effect),
+      options,
+    );
   }
 
   async *generate_stream(
@@ -177,12 +193,13 @@ export default class Gemini extends Adapter {
         : [];
 
     yield* this.execute_stream_with_retry(
-      ({ signal }) => {
+      ({ signal, mark_side_effect }) => {
         const contents = this.message_to_content(message);
 
         const generate = async function* (
           client: GoogleGenAI,
           config: AdapterConfig,
+          adapter: Gemini,
           all_tools: Tools[],
           contents: Content[],
         ): AsyncGenerator<MessagePartUnion> {
@@ -239,7 +256,13 @@ export default class Gemini extends Adapter {
 
               if (tool) {
                 try {
-                  const res = await tool.call(call.args, options?.tool_context);
+                  mark_side_effect();
+                  const res = await adapter.call_tool(
+                    tool,
+                    call.args ?? {},
+                    options?.tool_context,
+                    signal,
+                  );
                   tool_response =
                     typeof res?.result === "string"
                       ? res.result
@@ -249,6 +272,10 @@ export default class Gemini extends Adapter {
                     for (const part of res.parts) yield part;
                   }
                 } catch (error) {
+                  if (signal.aborted) {
+                    throw error;
+                  }
+
                   logger.error({
                     message: "Tool execution failed",
                     tool: call.name,
@@ -273,12 +300,12 @@ export default class Gemini extends Adapter {
               parts: parts,
             });
 
-            yield* generate(client, config, all_tools, contents);
+            yield* generate(client, config, adapter, all_tools, contents);
             return;
           }
         };
 
-        return generate(this.client, this.config, functions, contents);
+        return generate(this.client, this.config, this, functions, contents);
       },
       options,
     );

@@ -3,7 +3,7 @@ import logger from "@/logger";
 import type AdapterConfig from "./config";
 import type { Message, MessagePartUnion } from "./message";
 
-import type { ToolContext } from "@/sunflower/tools";
+import type { ToolContext, ToolResponse } from "@/sunflower/tools";
 import type Tools from "@/sunflower/tools";
 
 export interface GenerateOptions {
@@ -19,6 +19,8 @@ export interface GenerateOptions {
 interface ExecuteContext {
   signal: AbortSignal;
   attempt: number;
+  mark_side_effect: () => void;
+  has_side_effect: () => boolean;
 }
 
 const DEFAULT_RETRY_TIMES = 3;
@@ -75,11 +77,16 @@ export default abstract class Adapter {
         options?.signal,
         remaining_ms,
       );
+      let has_side_effect = false;
 
       try {
         return await runner({
           signal: attempt_signal.signal,
           attempt,
+          mark_side_effect: () => {
+            has_side_effect = true;
+          },
+          has_side_effect: () => has_side_effect,
         });
       } catch (error) {
         if (attempt_signal.aborted_by_external()) {
@@ -88,6 +95,10 @@ export default abstract class Adapter {
 
         if (attempt_signal.aborted_by_timeout() || Date.now() >= deadline) {
           throw this.timeout_error(total_timeout_ms, error);
+        }
+
+        if (has_side_effect) {
+          throw error;
         }
 
         if (attempt >= retry_times || !this.is_retryable_error(error)) {
@@ -138,6 +149,7 @@ export default abstract class Adapter {
         options?.signal,
         remaining_ms,
       );
+      let has_side_effect = false;
 
       let yielded = false;
 
@@ -145,6 +157,10 @@ export default abstract class Adapter {
         const stream = runner({
           signal: attempt_signal.signal,
           attempt,
+          mark_side_effect: () => {
+            has_side_effect = true;
+          },
+          has_side_effect: () => has_side_effect,
         });
 
         for await (const part of stream) {
@@ -160,6 +176,10 @@ export default abstract class Adapter {
 
         if (attempt_signal.aborted_by_timeout() || Date.now() >= deadline) {
           throw this.timeout_error(total_timeout_ms, error);
+        }
+
+        if (has_side_effect) {
+          throw error;
         }
 
         if (yielded) {
@@ -193,6 +213,26 @@ export default abstract class Adapter {
     }
 
     throw new Error("Adapter stream request failed after retries");
+  }
+
+  protected async call_tool(
+    tool: Tools,
+    args: Record<string, unknown>,
+    tool_context: ToolContext | undefined,
+    signal: AbortSignal,
+  ): Promise<ToolResponse> {
+    if (signal.aborted) {
+      throw signal.reason ?? new Error("Aborted");
+    }
+
+    const context = tool_context
+      ? {
+          ...tool_context,
+          signal,
+        }
+      : undefined;
+
+    return this.with_abort_signal(() => tool.call(args, context), signal);
   }
 
   protected is_retryable_error(error: unknown): boolean {
@@ -331,6 +371,51 @@ export default abstract class Adapter {
         }
       },
     };
+  }
+
+  private with_abort_signal<T>(
+    runner: () => Promise<T>,
+    signal: AbortSignal,
+  ): Promise<T> {
+    if (signal.aborted) {
+      return Promise.reject(signal.reason ?? new Error("Aborted"));
+    }
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+
+      const cleanup = () => {
+        signal.removeEventListener("abort", on_abort);
+      };
+
+      const resolve_once = (value: T) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        cleanup();
+        resolve(value);
+      };
+
+      const reject_once = (error: unknown) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+
+      const on_abort = () => {
+        reject_once(signal.reason ?? new Error("Aborted"));
+      };
+
+      signal.addEventListener("abort", on_abort, { once: true });
+
+      runner().then(resolve_once).catch(reject_once);
+    });
   }
 
   private sleep(ms: number, signal?: AbortSignal): Promise<void> {
