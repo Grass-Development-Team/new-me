@@ -189,75 +189,73 @@ export default class Instance {
         data: `Failed to generate message: ${(error as Error).message}`,
       };
     } finally {
-      try {
-        if (this.running[msg_id] === controller) {
-          delete this.running[msg_id];
-        }
-
-        if (final_msg.length > 0) {
-          this.history[scene].push(
-            {
-              role: "user",
-              parts: message.parts
-                .map((part) => {
-                  if (part.type === "text") {
-                    return part;
-                  } else if (part.type === "image") {
-                    return undefined;
-                    // TODO: Cache image and return cached version
-                    // return {
-                    //   type: "image",
-                    //   content: `[Image] ${cached}`,
-                    //   cached: true,
-                    // };
-                  } else {
-                    return undefined;
-                  }
-                })
-                .filter((part) => part !== undefined),
-            },
-            {
-              role: "assistant",
-              parts: [
-                {
-                  type: "text",
-                  content: final_msg.join("[[msg_split]]"),
-                },
-              ],
-            },
-          );
-
-          const max_limit = this.sunflower.config.max_history ?? 60;
-
-          if (this.history[scene].length > max_limit) {
-            this.history[scene].shift();
-          }
-        }
-
-        await storage.set_instance(this.id, {
-          instance_id: this.id,
-          history: this.history,
-        });
-
-        if (meta.type === "reactive") {
-          const user_data = await storage.get_user(
-            this.platform,
-            meta.user_meta.id,
-          );
-
-          await storage.set_user(this.platform, {
-            ...user_data,
-            last_interaction: meta.user_meta.time,
-          });
-        }
-
-        yield {
-          status: "end",
-          data: msg_id,
-        };
-      } finally {
-        this.lock.release();
+      if (this.running[msg_id] === controller) {
+        delete this.running[msg_id];
       }
+
+      if (final_msg.length > 0) {
+        this.history[scene].push(
+          {
+            role: "user",
+            parts: message.parts
+              .map((part) => {
+                if (part.type === "text") {
+                  return part;
+                } else if (part.type === "image") {
+                  return undefined;
+                  // TODO: Cache image and return cached version
+                  // return {
+                  //   type: "image",
+                  //   content: `[Image] ${cached}`,
+                  //   cached: true,
+                  // };
+                } else {
+                  return undefined;
+                }
+              })
+              .filter((part) => part !== undefined),
+          },
+          {
+            role: "assistant",
+            parts: [
+              {
+                type: "text",
+                content: final_msg.join("[[msg_split]]"),
+              },
+            ],
+          },
+        );
+
+        const max_limit = this.sunflower.config.max_history ?? 60;
+
+        if (this.history[scene].length > max_limit) {
+          this.history[scene].shift();
+        }
+      }
+
+      await storage.set_instance(this.id, {
+        instance_id: this.id,
+        history: this.history,
+      });
+
+      if (meta.type === "reactive") {
+        const user_data = await storage.get_user(
+          this.platform,
+          meta.user_meta.id,
+        );
+
+        await storage.set_user(this.platform, {
+          ...user_data,
+          last_interaction: meta.user_meta.time,
+        });
+      }
+
+      yield {
+        status: "end",
+        data: msg_id,
+      };
+
+      this.lock.release();
     }
   }
 
