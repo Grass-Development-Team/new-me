@@ -25,8 +25,8 @@ interface ExecuteContext {
 
 const DEFAULT_RETRY_TIMES = 3;
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
-const RETRY_BASE_DELAY_MS = 500;
-const RETRY_MAX_DELAY_MS = 5000;
+const RETRY_STEP_DELAY_MS = 5000;
+const RETRY_MAX_DELAY_MS = 20000;
 
 export default abstract class Adapter {
   /**
@@ -299,9 +299,7 @@ export default abstract class Adapter {
   }
 
   private retry_delay_ms(attempt: number): number {
-    const base = Math.min(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1), RETRY_MAX_DELAY_MS);
-    const jitter = 0.85 + Math.random() * 0.3;
-    return Math.floor(base * jitter);
+    return Math.min(RETRY_STEP_DELAY_MS * attempt, RETRY_MAX_DELAY_MS);
   }
 
   private timeout_error(timeout_ms: number, cause?: unknown): Error {
