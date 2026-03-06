@@ -49,12 +49,14 @@ export default class OpenAI extends Adapter {
     const generate = async (
       current: ChatCompletionMessageParam[],
     ): Promise<Message> => {
+      const tools = this.tools_to_openai_tools(options?.tools ?? []);
       const response = await this.client.chat.completions.create(
         {
           model: options?.model ?? this.config.model,
           messages: current,
-          tools: this.tools_to_openai_tools(options?.tools ?? []),
-          tool_choice: "auto",
+          ...(tools && tools.length
+            ? { tools, tool_choice: "auto" as const }
+            : {}),
         },
         {
           signal: options?.signal,
