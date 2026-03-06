@@ -82,11 +82,50 @@ export default class OpenAI extends Adapter {
       if (response_msg.tool_calls?.length) {
         current.push(response_msg);
 
-        const tool_messages = await this.handle_tool_calls(
-          response_msg.tool_calls,
-          options,
-          final_res,
-        );
+        const tool_messages: ChatCompletionMessageParam[] = [];
+        const functions = options?.tools ?? [];
+
+        for (const call of response_msg.tool_calls) {
+          if (call.type !== "function") continue;
+
+          const name = call.function.name;
+          const args_str = call.function.arguments;
+          let tool_response = "No tools found";
+
+          const tool = functions.find((item) => item.name === name);
+          if (tool) {
+            try {
+              const args = args_str ? JSON.parse(args_str) : {};
+              const res = await tool.call(args, options?.tool_context);
+
+              tool_response =
+                typeof res?.result === "string"
+                  ? res.result
+                  : "Tool returned invalid response";
+
+              if (Array.isArray(res?.parts)) {
+                final_res.parts.push(...res.parts);
+              }
+            } catch (error) {
+              logger.error({
+                message: "Tool execution failed",
+                tool: name,
+                error: error instanceof Error ? error.message : String(error),
+              });
+              const error_message =
+                error instanceof Error ? error.message : String(error);
+              tool_response = `Tool ${name} failed: ${error_message}`;
+            }
+          } else {
+            tool_response = `Tool ${name} not found`;
+          }
+
+          tool_messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            content: tool_response,
+          });
+        }
 
         current.push(...tool_messages);
 
@@ -173,10 +212,50 @@ export default class OpenAI extends Adapter {
         };
         current.push(assistant_msg);
 
-        const tool_messages = await adapter.handle_tool_calls(
-          tool_calls as ChatCompletionMessageToolCall[],
-          options,
-        );
+        const tool_messages: ChatCompletionMessageParam[] = [];
+        const functions = options?.tools ?? [];
+
+        for (const call of tool_calls as ChatCompletionMessageToolCall[]) {
+          if (call.type !== "function") continue;
+
+          const name = call.function.name;
+          const args_str = call.function.arguments;
+          let tool_response = "No tools found";
+
+          const tool = functions.find((item) => item.name === name);
+          if (tool) {
+            try {
+              const args = args_str ? JSON.parse(args_str) : {};
+              const res = await tool.call(args, options?.tool_context);
+
+              tool_response =
+                typeof res?.result === "string"
+                  ? res.result
+                  : "Tool returned invalid response";
+
+              if (Array.isArray(res?.parts)) {
+                yield* res.parts;
+              }
+            } catch (error) {
+              logger.error({
+                message: "Tool execution failed",
+                tool: name,
+                error: error instanceof Error ? error.message : String(error),
+              });
+              const error_message =
+                error instanceof Error ? error.message : String(error);
+              tool_response = `Tool ${name} failed: ${error_message}`;
+            }
+          } else {
+            tool_response = `Tool ${name} not found`;
+          }
+
+          tool_messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            content: tool_response,
+          });
+        }
 
         current.push(...tool_messages);
 
@@ -293,60 +372,6 @@ export default class OpenAI extends Adapter {
         },
       },
     }));
-  }
-
-  async handle_tool_calls(
-    tool_calls: ChatCompletionMessageToolCall[],
-    options?: GenerateOptions,
-    final_res?: Message,
-  ): Promise<ChatCompletionMessageParam[]> {
-    const tool_messages: ChatCompletionMessageParam[] = [];
-    const tools = options?.tools ?? [];
-
-    for (const call of tool_calls) {
-      if (call.type !== "function") continue;
-
-      const name = call.function.name;
-      const args_str = call.function.arguments;
-
-      let tool_response = "No tools found";
-
-      const tool = tools.find((item) => item.name === name);
-      if (tool) {
-        try {
-          const args = args_str ? JSON.parse(args_str) : {};
-          const res = await tool.call(args, options?.tool_context);
-
-          tool_response =
-            typeof res?.result === "string"
-              ? res.result
-              : "Tool returned invalid response";
-
-          if (final_res && Array.isArray(res?.parts)) {
-            final_res.parts.push(...res.parts);
-          }
-        } catch (error) {
-          logger.error({
-            message: "Tool execution failed",
-            tool: name,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          const error_message =
-            error instanceof Error ? error.message : String(error);
-          tool_response = `Tool ${name} failed: ${error_message}`;
-        }
-      } else {
-        tool_response = `Tool ${name} not found`;
-      }
-
-      tool_messages.push({
-        role: "tool",
-        tool_call_id: call.id,
-        content: tool_response,
-      });
-    }
-
-    return tool_messages;
   }
 
   content_to_message_parts(
