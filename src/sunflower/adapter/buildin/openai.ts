@@ -37,7 +37,6 @@ export default class OpenAI extends Adapter {
     this.client = new OpenAIClient({
       apiKey: config.api_key,
       baseURL: config.base_url,
-      dangerouslyAllowBrowser: true,
     });
   }
 
