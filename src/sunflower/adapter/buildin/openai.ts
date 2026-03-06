@@ -153,12 +153,16 @@ export default class OpenAI extends Adapter {
       adapter: OpenAI,
       current: ChatCompletionMessageParam[],
     ): AsyncGenerator<MessagePartUnion> {
+      const tools = OpenAI.prototype.tools_to_openai_tools(
+        options?.tools ?? [],
+      );
       const stream = await client.chat.completions.create(
         {
           model: options?.model ?? adapter.config.model,
           messages: current,
-          tools: adapter.tools_to_openai_tools(options?.tools ?? []),
-          tool_choice: "auto",
+          ...(tools && tools.length
+            ? { tools, tool_choice: "auto" as const }
+            : {}),
           stream: true,
         },
         {
