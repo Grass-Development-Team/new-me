@@ -389,13 +389,31 @@ export default class OpenAI extends Adapter {
       if (part.type === "text") {
         parts.push({ type: "text", content: part.text });
       } else if (part.type === "image_url") {
-        parts.push({
-          type: "image",
-          content: {
-            mime: "image/*",
-            url: part.image_url.url,
-          },
-        });
+        const imageUrl = part.image_url.url;
+
+        const dataUrlMatch =
+          typeof imageUrl === "string"
+            ? /^data:(.+?);base64,(.*)$/.exec(imageUrl)
+            : null;
+
+        if (dataUrlMatch) {
+          const [, mime, base64Data] = dataUrlMatch;
+          parts.push({
+            type: "image",
+            content: {
+              mime,
+              url: base64Data,
+            },
+          });
+        } else {
+          parts.push({
+            type: "image",
+            content: {
+              mime: "image/*",
+              url: imageUrl,
+            },
+          });
+        }
       }
     }
 
