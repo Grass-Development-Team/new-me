@@ -45,232 +45,268 @@ export default class OpenAI extends Adapter {
     message: Message[],
     options?: GenerateOptions,
   ): Promise<Message> {
-    const messages = this.messages_to_content(message, options);
-
-    const generate = async (
-      current: ChatCompletionMessageParam[],
+    const run = async (
+      signal: AbortSignal,
+      mark_side_effect: () => void,
     ): Promise<Message> => {
-      const tools = this.tools_to_openai_tools(options?.tools ?? []);
-      const response = await this.client.chat.completions.create(
-        {
-          model: options?.model ?? this.config.model,
-          messages: current,
-          ...(tools && tools.length
-            ? { tools, tool_choice: "auto" as const }
-            : {}),
-        },
-        {
-          signal: options?.signal,
-        },
-      );
+      const messages = this.messages_to_content(message, options);
 
-      const choice = response.choices[0];
-      if (!choice?.message) {
-        throw new Error("No response generated");
-      }
-
-      const response_msg = choice.message;
-
-      const final_res: Message = {
-        role: "assistant",
-        parts: [],
-      };
-
-      if (response_msg.content) {
-        final_res.parts.push(
-          ...this.content_to_message_parts(response_msg.content),
+      const generate = async (
+        current: ChatCompletionMessageParam[],
+      ): Promise<Message> => {
+        const tools = this.tools_to_openai_tools(options?.tools ?? []);
+        const response = await this.client.chat.completions.create(
+          {
+            model: options?.model ?? this.config.model,
+            messages: current,
+            ...(tools && tools.length
+              ? { tools, tool_choice: "auto" as const }
+              : {}),
+          },
+          {
+            signal,
+          },
         );
-      }
 
-      if (response_msg.tool_calls?.length) {
-        current.push(response_msg);
-
-        const tool_messages: ChatCompletionMessageParam[] = [];
-        const functions = options?.tools ?? [];
-
-        for (const call of response_msg.tool_calls) {
-          if (call.type !== "function") continue;
-
-          const name = call.function.name;
-          const args_str = call.function.arguments;
-          let tool_response = "No tools found";
-
-          const tool = functions.find((item) => item.name === name);
-          if (tool) {
-            try {
-              const args = args_str ? JSON.parse(args_str) : {};
-              const res = await tool.call(args, options?.tool_context);
-
-              tool_response =
-                typeof res?.result === "string"
-                  ? res.result
-                  : "Tool returned invalid response";
-
-              if (Array.isArray(res?.parts)) {
-                final_res.parts.push(...res.parts);
-              }
-            } catch (error) {
-              logger.error({
-                message: "Tool execution failed",
-                tool: name,
-                error: error instanceof Error ? error.message : String(error),
-              });
-              const error_message =
-                error instanceof Error ? error.message : String(error);
-              tool_response = `Tool ${name} failed: ${error_message}`;
-            }
-          } else {
-            tool_response = `Tool ${name} not found`;
-          }
-
-          tool_messages.push({
-            role: "tool",
-            tool_call_id: call.id,
-            content: tool_response,
-          });
+        const choice = response.choices[0];
+        if (!choice?.message) {
+          throw new Error("No response generated");
         }
 
-        current.push(...tool_messages);
+        const response_msg = choice.message;
 
-        const next = await generate(current);
-        final_res.parts.push(...next.parts);
-      }
+        const final_res: Message = {
+          role: "assistant",
+          parts: [],
+        };
 
-      return final_res;
+        if (response_msg.content) {
+          final_res.parts.push(
+            ...this.content_to_message_parts(response_msg.content),
+          );
+        }
+
+        if (response_msg.tool_calls?.length) {
+          current.push(response_msg);
+
+          const tool_messages: ChatCompletionMessageParam[] = [];
+          const functions = options?.tools ?? [];
+
+          for (const call of response_msg.tool_calls) {
+            if (call.type !== "function") continue;
+
+            const name = call.function.name;
+            const args_str = call.function.arguments;
+            let tool_response = "No tools found";
+
+            const tool = functions.find((item) => item.name === name);
+            if (tool) {
+              try {
+                const args = args_str ? JSON.parse(args_str) : {};
+                mark_side_effect();
+                const res = await this.call_tool(
+                  tool,
+                  args,
+                  options?.tool_context,
+                  signal,
+                );
+
+                tool_response =
+                  typeof res?.result === "string"
+                    ? res.result
+                    : "Tool returned invalid response";
+
+                if (Array.isArray(res?.parts)) {
+                  final_res.parts.push(...res.parts);
+                }
+              } catch (error) {
+                if (signal.aborted) {
+                  throw error;
+                }
+
+                logger.error({
+                  message: "Tool execution failed",
+                  tool: name,
+                  error: error instanceof Error ? error.message : String(error),
+                });
+                const error_message =
+                  error instanceof Error ? error.message : String(error);
+                tool_response = `Tool ${name} failed: ${error_message}`;
+              }
+            } else {
+              tool_response = `Tool ${name} not found`;
+            }
+
+            tool_messages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              content: tool_response,
+            });
+          }
+
+          current.push(...tool_messages);
+
+          const next = await generate(current);
+          final_res.parts.push(...next.parts);
+        }
+
+        return final_res;
+      };
+
+      return generate(messages);
     };
 
-    return generate(messages);
+    return this.execute_with_retry(
+      ({ signal, mark_side_effect }) => run(signal, mark_side_effect),
+      options,
+    );
   }
 
   async *generate_stream(
     message: Message[],
     options?: GenerateOptions,
   ): AsyncGenerator<MessagePartUnion> {
-    const messages = this.messages_to_content(message, options);
+    yield* this.execute_stream_with_retry(
+      ({ signal, mark_side_effect }) => {
+        const messages = this.messages_to_content(message, options);
 
-    const generate_stream = async function* (
-      client: OpenAIClient,
-      adapter: OpenAI,
-      current: ChatCompletionMessageParam[],
-    ): AsyncGenerator<MessagePartUnion> {
-      const tools = OpenAI.prototype.tools_to_openai_tools(
-        options?.tools ?? [],
-      );
-      const stream = await client.chat.completions.create(
-        {
-          model: options?.model ?? adapter.config.model,
-          messages: current,
-          ...(tools && tools.length
-            ? { tools, tool_choice: "auto" as const }
-            : {}),
-          stream: true,
-        },
-        {
-          signal: options?.signal,
-        },
-      );
+        const generate_stream = async function* (
+          client: OpenAIClient,
+          adapter: OpenAI,
+          current: ChatCompletionMessageParam[],
+        ): AsyncGenerator<MessagePartUnion> {
+          const tools = OpenAI.prototype.tools_to_openai_tools(
+            options?.tools ?? [],
+          );
+          const stream = await client.chat.completions.create(
+            {
+              model: options?.model ?? adapter.config.model,
+              messages: current,
+              ...(tools && tools.length
+                ? { tools, tool_choice: "auto" as const }
+                : {}),
+              stream: true,
+            },
+            {
+              signal,
+            },
+          );
 
-      const tool_calls_buffer = new Map<number, OpenAIToolCall>();
-      let streamed_text = "";
+          const tool_calls_buffer = new Map<number, OpenAIToolCall>();
+          let streamed_text = "";
 
-      for await (const chunk of stream as AsyncIterable<ChatCompletionChunk>) {
-        const delta = chunk.choices[0]?.delta;
-        if (!delta) continue;
+          for await (const chunk of stream as AsyncIterable<ChatCompletionChunk>) {
+            const delta = chunk.choices[0]?.delta;
+            if (!delta) continue;
 
-        if (delta.content) {
-          streamed_text += delta.content;
-          yield { type: "text", content: delta.content };
-        }
-
-        if (delta.tool_calls?.length) {
-          for (const tc of delta.tool_calls) {
-            const index = tc.index ?? 0;
-
-            const prev =
-              tool_calls_buffer.get(index) ??
-              ({
-                id: tc.id ?? "",
-                type: "function",
-                function: {
-                  name: "",
-                  arguments: "",
-                },
-              } as OpenAIToolCall);
-
-            if (tc.id) prev.id = tc.id;
-            if (tc.function?.name) {
-              prev.function.name += tc.function.name;
-            }
-            if (tc.function?.arguments) {
-              prev.function.arguments += tc.function.arguments;
+            if (delta.content) {
+              streamed_text += delta.content;
+              yield { type: "text", content: delta.content };
             }
 
-            tool_calls_buffer.set(index, prev);
-          }
-        }
-      }
+            if (delta.tool_calls?.length) {
+              for (const tc of delta.tool_calls) {
+                const index = tc.index ?? 0;
 
-      const tool_calls = Array.from(tool_calls_buffer.values());
-      if (tool_calls.length > 0) {
-        const assistant_msg: ChatCompletionMessageParam = {
-          role: "assistant",
-          content: streamed_text || null,
-          tool_calls: tool_calls,
-        };
-        current.push(assistant_msg);
+                const prev =
+                  tool_calls_buffer.get(index) ??
+                  ({
+                    id: tc.id ?? "",
+                    type: "function",
+                    function: {
+                      name: "",
+                      arguments: "",
+                    },
+                  } as OpenAIToolCall);
 
-        const tool_messages: ChatCompletionMessageParam[] = [];
-        const functions = options?.tools ?? [];
+                if (tc.id) prev.id = tc.id;
+                if (tc.function?.name) {
+                  prev.function.name += tc.function.name;
+                }
+                if (tc.function?.arguments) {
+                  prev.function.arguments += tc.function.arguments;
+                }
 
-        for (const call of tool_calls as ChatCompletionMessageToolCall[]) {
-          if (call.type !== "function") continue;
-
-          const name = call.function.name;
-          const args_str = call.function.arguments;
-          let tool_response = "No tools found";
-
-          const tool = functions.find((item) => item.name === name);
-          if (tool) {
-            try {
-              const args = args_str ? JSON.parse(args_str) : {};
-              const res = await tool.call(args, options?.tool_context);
-
-              tool_response =
-                typeof res?.result === "string"
-                  ? res.result
-                  : "Tool returned invalid response";
-
-              if (Array.isArray(res?.parts)) {
-                for (const part of res.parts) yield part;
+                tool_calls_buffer.set(index, prev);
               }
-            } catch (error) {
-              logger.error({
-                message: "Tool execution failed",
-                tool: name,
-                error: error instanceof Error ? error.message : String(error),
-              });
-              const error_message =
-                error instanceof Error ? error.message : String(error);
-              tool_response = `Tool ${name} failed: ${error_message}`;
             }
-          } else {
-            tool_response = `Tool ${name} not found`;
           }
 
-          tool_messages.push({
-            role: "tool",
-            tool_call_id: call.id,
-            content: tool_response,
-          });
-        }
+          const tool_calls = Array.from(tool_calls_buffer.values());
+          if (tool_calls.length > 0) {
+            const assistant_msg: ChatCompletionMessageParam = {
+              role: "assistant",
+              content: streamed_text || null,
+              tool_calls: tool_calls,
+            };
+            current.push(assistant_msg);
 
-        current.push(...tool_messages);
+            const tool_messages: ChatCompletionMessageParam[] = [];
+            const functions = options?.tools ?? [];
 
-        yield* generate_stream(client, adapter, current);
-      }
-    };
+            for (const call of tool_calls as ChatCompletionMessageToolCall[]) {
+              if (call.type !== "function") continue;
 
-    yield* generate_stream(this.client, this, messages);
+              const name = call.function.name;
+              const args_str = call.function.arguments;
+              let tool_response = "No tools found";
+
+              const tool = functions.find((item) => item.name === name);
+              if (tool) {
+                try {
+                  const args = args_str ? JSON.parse(args_str) : {};
+                  mark_side_effect();
+                  const res = await adapter.call_tool(
+                    tool,
+                    args,
+                    options?.tool_context,
+                    signal,
+                  );
+
+                  tool_response =
+                    typeof res?.result === "string"
+                      ? res.result
+                      : "Tool returned invalid response";
+
+                  if (Array.isArray(res?.parts)) {
+                    for (const part of res.parts) yield part;
+                  }
+                } catch (error) {
+                  if (signal.aborted) {
+                    throw error;
+                  }
+
+                  logger.error({
+                    message: "Tool execution failed",
+                    tool: name,
+                    error: error instanceof Error ? error.message : String(error),
+                  });
+                  const error_message =
+                    error instanceof Error ? error.message : String(error);
+                  tool_response = `Tool ${name} failed: ${error_message}`;
+                }
+              } else {
+                tool_response = `Tool ${name} not found`;
+              }
+
+              tool_messages.push({
+                role: "tool",
+                tool_call_id: call.id,
+                content: tool_response,
+              });
+            }
+
+            current.push(...tool_messages);
+
+            yield* generate_stream(client, adapter, current);
+            return;
+          }
+        };
+
+        return generate_stream(this.client, this, messages);
+      },
+      options,
+    );
   }
 
   messages_to_content(
