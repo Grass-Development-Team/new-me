@@ -15,8 +15,11 @@ import {
   type FunctionDeclaration,
   type Part,
   type SafetySetting,
+  type Schema as GeminiSchema,
   type ToolListUnion,
 } from "@google/genai";
+
+import type { ToolParameters, ToolParameterSchema } from "@/sunflower/tools";
 
 const SAFE_SETTINGS_BLOCK_NONE: SafetySetting[] = [
   {
@@ -331,12 +334,74 @@ export default class Gemini extends Adapter {
       return {
         name: tool.name,
         description: tool.description,
-        parameters: {
-          type: Type.OBJECT,
-          properties: tool.parameters,
-          required: tool.required,
-        },
+        parameters: this.parameters_to_gemini_schema(
+          tool.parameters ?? {},
+          tool.required,
+        ),
       };
     });
+  }
+
+  private parameters_to_gemini_schema(
+    parameters: ToolParameters,
+    required?: string[],
+  ): GeminiSchema {
+    return {
+      type: Type.OBJECT,
+      properties: Object.fromEntries(
+        Object.entries(parameters).map(([key, schema]) => [
+          key,
+          this.schema_to_gemini(schema),
+        ]),
+      ),
+      ...(required?.length ? { required } : {}),
+    };
+  }
+
+  private schema_to_gemini(schema: ToolParameterSchema): GeminiSchema {
+    const base: Partial<GeminiSchema> = {
+      ...(schema.description !== undefined
+        ? { description: schema.description }
+        : {}),
+      ...(schema.nullable !== undefined ? { nullable: schema.nullable } : {}),
+    };
+
+    switch (schema.type) {
+      case "string":
+        return {
+          type: Type.STRING,
+          ...base,
+          ...(schema.enum?.length ? { enum: schema.enum } : {}),
+        };
+
+      case "number":
+        return { type: Type.NUMBER, ...base };
+
+      case "integer":
+        return { type: Type.INTEGER, ...base };
+
+      case "boolean":
+        return { type: Type.BOOLEAN, ...base };
+
+      case "array":
+        return {
+          type: Type.ARRAY,
+          ...base,
+          items: this.schema_to_gemini(schema.items),
+        };
+
+      case "object":
+        return {
+          type: Type.OBJECT,
+          ...base,
+          properties: Object.fromEntries(
+            Object.entries(schema.properties).map(([key, s]) => [
+              key,
+              this.schema_to_gemini(s),
+            ]),
+          ),
+          ...(schema.required?.length ? { required: schema.required } : {}),
+        };
+    }
   }
 }

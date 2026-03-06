@@ -14,7 +14,7 @@ export default class GenerateImageTool extends Tools {
     "该工具用于生成图片。请根据用户的需求，调用该工具生成相应的图片。提示词请使用英文（除非是要在图中显示非英文的文字），详细的描述镜头、场景、人物外貌、风格等。一轮对话中**最多只能使用一次**该工具，哪怕是生成失败。注意，如果用户好感度过低，请不要生成图片。非必要情况下不要使用。";
   parameters?: ToolParameters = {
     description: {
-      type: "STRING",
+      type: "string" as const,
       description: "对需要生成的图片的详细描述，越详细越好",
     },
   };
