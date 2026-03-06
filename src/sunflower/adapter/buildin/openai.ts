@@ -237,7 +237,7 @@ export default class OpenAI extends Adapter {
                   : "Tool returned invalid response";
 
               if (Array.isArray(res?.parts)) {
-                yield* res.parts;
+                for (const part of res.parts) yield part;
               }
             } catch (error) {
               logger.error({

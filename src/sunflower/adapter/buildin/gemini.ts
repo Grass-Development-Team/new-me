@@ -70,13 +70,11 @@ export default class Gemini extends Adapter {
   ): Promise<Message> {
     const contents = this.message_to_content(message);
     const functions = options?.tools ?? [];
-    const tools: ToolListUnion = [
+    // TODO: Gemini Buildin Tools
+    const tools: ToolListUnion =
       functions.length > 0
-        ? {
-            functionDeclarations: this.tools_to_gemini_tools(functions),
-          }
-        : undefined,
-    ].filter((item) => item !== undefined);
+        ? [{ functionDeclarations: this.tools_to_gemini_tools(functions) }]
+        : [];
 
     const generate = async (contents: Content[]) => {
       const res = await this.client.models.generateContent({
@@ -165,11 +163,11 @@ export default class Gemini extends Adapter {
   ): AsyncGenerator<MessagePartUnion> {
     const contents = this.message_to_content(message);
     const functions = options?.tools ?? [];
-    const tools: ToolListUnion = [
+    // TODO: Gemini Buildin Tools
+    const tools: ToolListUnion =
       functions.length > 0
-        ? { functionDeclarations: this.tools_to_gemini_tools(functions) }
-        : undefined,
-    ].filter((item) => item !== undefined);
+        ? [{ functionDeclarations: this.tools_to_gemini_tools(functions) }]
+        : [];
 
     const generate = async function* (
       client: GoogleGenAI,
@@ -223,7 +221,7 @@ export default class Gemini extends Adapter {
                     : "Tool returned invalid response";
 
                 if (Array.isArray(res?.parts)) {
-                  yield* res.parts;
+                  for (const part of res.parts) yield part;
                 }
               } catch (error) {
                 logger.error({
@@ -325,7 +323,8 @@ export default class Gemini extends Adapter {
           ?.map((part) => {
             return Gemini.prototype.part_to_message_part(part);
           })
-          ?.filter((part) => part !== undefined) ?? [],
+          ?.filter((part): part is MessagePartUnion => part !== undefined) ??
+        [],
     };
   }
 

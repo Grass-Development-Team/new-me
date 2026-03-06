@@ -2,6 +2,7 @@ import type Sunflower from ".";
 
 import type { Message, MessagePartUnion } from "@/sunflower/adapter/message";
 
+import type Tools from "@/sunflower/tools";
 import AddScore from "@/sunflower/tools/buildin/add_score";
 
 import Lock from "@/utils/lock";
@@ -152,7 +153,7 @@ export default class Instance {
       }
 
       const stream = scene_obj.generate(
-        [...this.history[scene], message],
+        [...this.history[scene]!, message],
         prompt,
         this.sunflower,
         {
@@ -160,7 +161,7 @@ export default class Instance {
           tools: [
             ...(this.sunflower.config.tools ?? []),
             meta.type === "reactive" ? new AddScore() : undefined,
-          ].filter((tool) => tool !== undefined),
+          ].filter((tool): tool is Tools => tool !== undefined),
           tool_context: {
             sunflower: this.sunflower,
             instance: this,
@@ -194,7 +195,7 @@ export default class Instance {
       }
 
       if (final_msg.length > 0) {
-        this.history[scene].push(
+        this.history[scene]!.push(
           {
             role: "user",
             parts: message.parts
@@ -213,7 +214,7 @@ export default class Instance {
                   return undefined;
                 }
               })
-              .filter((part) => part !== undefined),
+              .filter((part): part is MessagePartUnion => part !== undefined),
           },
           {
             role: "assistant",
@@ -228,8 +229,8 @@ export default class Instance {
 
         const max_limit = this.sunflower.config.max_history ?? 60;
 
-        if (this.history[scene].length > max_limit) {
-          this.history[scene].shift();
+        if (this.history[scene]!.length > max_limit) {
+          this.history[scene]!.shift();
         }
       }
 
@@ -261,7 +262,7 @@ export default class Instance {
 
   abort(msg_id: string) {
     if (this.running[msg_id]) {
-      this.running[msg_id].abort();
+      this.running[msg_id]!.abort();
       delete this.running[msg_id];
     }
   }
