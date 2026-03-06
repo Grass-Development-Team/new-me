@@ -158,7 +158,7 @@ export default class Instance {
         {
           model: scene_obj.model.model,
           tools: [
-            ...this.sunflower.config.tools,
+            ...(this.sunflower.config.tools ?? []),
             meta.type === "reactive" ? new AddScore() : undefined,
           ].filter((tool) => tool !== undefined),
           tool_context: {

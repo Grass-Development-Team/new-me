@@ -29,6 +29,7 @@ const config: Config = {
       driver: "gemini",
     }),
   },
+  tools: [],
 };
 
 export default config;
