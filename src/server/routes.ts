@@ -39,8 +39,17 @@ export default class Route {
         reqs: AsyncIterable<GenerateRequest>,
         ctx: HandlerContext,
       ): AsyncGenerator<GenerateResponseType> {
+        logger.debug({
+          event: "route.generate.start",
+        });
+
         const it = reqs[Symbol.asyncIterator]();
         const first = await it.next();
+
+        logger.debug({
+          event: "route.generate.receive",
+          chunk: first,
+        });
 
         if (first.done) return;
         if (first.value.payload.case !== "context") return;
@@ -48,8 +57,17 @@ export default class Route {
         let msg_id: string | undefined;
 
         const context = first.value.payload.value;
+        logger.debug({
+          event: "route.generate.receive.context",
+          context,
+        });
 
         const kill = () => {
+          logger.debug({
+            event: "route.generate.kill",
+            msg_id,
+          });
+
           if (msg_id) {
             this.sunflower.abort(context.platform, context.platformSid, msg_id);
           }
@@ -62,9 +80,17 @@ export default class Route {
 
           while (true) {
             const msg = await it.next();
+            logger.debug({
+              event: "route.generate.receive",
+              chunk: msg,
+            });
 
             if (msg.done) break;
             if (msg.value.payload.case === "cancel") {
+              logger.debug({
+                event: "route.generate.receive.cancel",
+                payload: msg.value.payload,
+              });
               kill();
               break;
             }
@@ -81,8 +107,24 @@ export default class Route {
           scene,
           args,
         );
+        logger.debug({
+          event: "route.generate.converted",
+          payload: {
+            platform,
+            platform_sid,
+            meta,
+            message,
+            scene,
+            args,
+          },
+        });
 
         for await (const part of stream) {
+          logger.debug({
+            event: "route.generate.stream.part",
+            part,
+          });
+
           if (part.status === "queue") {
             msg_id = part.data;
           }
@@ -105,7 +147,7 @@ export default class Route {
                   }
                 : part.data.content;
 
-            yield create(GenerateResponseSchema, {
+            const response = create(GenerateResponseSchema, {
               status: {
                 case: part.status,
                 value: {
@@ -116,26 +158,56 @@ export default class Route {
                 },
               },
             });
+            logger.debug({
+              event: "route.generate.send",
+              response,
+            });
+            yield response;
           } else {
-            yield create(GenerateResponseSchema, {
+            const response = create(GenerateResponseSchema, {
               status: {
                 case: part.status,
                 value: part.data,
               },
             });
+            logger.debug({
+              event: "route.generate.send",
+              response,
+            });
+            yield response;
           }
         }
+
+        logger.debug({
+          event: "route.generate.end",
+          msg_id,
+        });
       }.bind(this),
       abort: (req) => {
+        logger.debug({
+          event: "route.abort.receive",
+          req,
+        });
+
         if (req.msgId) {
           this.sunflower.abort(req.platform, req.platformSid, req.msgId);
         } else {
           this.sunflower.abort_all(req.platform, req.platformSid);
         }
 
-        return create(AbortResponseSchema);
+        const response = create(AbortResponseSchema);
+        logger.debug({
+          event: "route.abort.send",
+          response,
+        });
+        return response;
       },
       updateUser: async (req) => {
+        logger.debug({
+          event: "route.updateUser.receive",
+          req,
+        });
+
         const storage = this.sunflower.get_storage();
         const user = await storage.get_user(req.platform, req.id);
 
@@ -148,13 +220,23 @@ export default class Route {
           user.score = req.score;
         }
 
-        return create(UpdateUserResponseSchema, {
+        const response = create(UpdateUserResponseSchema, {
           platform: req.platform,
           id: req.id,
           score: user.score,
         });
+        logger.debug({
+          event: "route.updateUser.send",
+          response,
+        });
+        return response;
       },
       clearChat: async (req) => {
+        logger.debug({
+          event: "route.clearChat.receive",
+          req,
+        });
+
         const storage = this.sunflower.get_storage();
         const instance_id = `${req.platform}::${req.platformSid}`;
         const history = await storage.get_instance(instance_id);
@@ -175,7 +257,12 @@ export default class Route {
           history,
         );
 
-        return create(ClearChatResponseSchema);
+        const response = create(ClearChatResponseSchema);
+        logger.debug({
+          event: "route.clearChat.send",
+          response,
+        });
+        return response;
       },
     });
   }
