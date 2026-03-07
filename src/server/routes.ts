@@ -23,6 +23,7 @@ import type { InstanceMeta } from "@/sunflower/instance";
 import type { Message } from "@/sunflower/adapter/message";
 import type { ListValue, Value } from "@bufbuild/protobuf/wkt";
 import logger from "@/logger";
+import { format_time_by_tz } from "@/utils/time";
 
 export default class Route {
   private sunflower: Sunflower;
@@ -200,6 +201,9 @@ export default class Route {
         raw_meta.payload.value?.user?.sex === UserSex.FEMALE
           ? "female"
           : "male";
+      const user_time = format_time_by_tz(
+        this.ensure(raw_meta.payload.value?.user?.time, "meta.user.time"),
+      );
 
       meta = {
         type: "reactive",
@@ -214,10 +218,7 @@ export default class Route {
             "meta.user.nickname",
           ),
           sex: sex,
-          time: this.ensure(
-            raw_meta.payload.value?.user?.time,
-            "meta.user.time",
-          ),
+          time: user_time,
         },
       };
     }
