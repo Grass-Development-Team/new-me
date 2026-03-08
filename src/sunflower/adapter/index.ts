@@ -28,7 +28,7 @@ const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const RETRY_STEP_DELAY_MS = 5000;
 const RETRY_MAX_DELAY_MS = 20000;
 
-export default abstract class Adapter {
+export default abstract class Adapter<T = undefined> {
   /**
    * The unique identifier for the adapter. This should be a string that uniquely identifies the adapter, such as "openai-gpt-3" or "azure-openai".
    */
@@ -36,7 +36,7 @@ export default abstract class Adapter {
   /**
    * The configuration for the adapter. This should include all necessary information for connecting to the API, such as API keys, base URLs, model names, and system prompts.
    */
-  abstract config: AdapterConfig;
+  abstract config: AdapterConfig<T>;
 
   /**
    * Generates a response based on the given message. This method should take a Message object as input and return a Response object. The implementation of this method will depend on the specific API being used, but it should handle the logic for sending the message to the API and processing the response.
@@ -239,7 +239,12 @@ export default abstract class Adapter {
     const status = this.error_status(error);
 
     if (status !== undefined) {
-      if (status === 408 || status === 409 || status === 425 || status === 429) {
+      if (
+        status === 408 ||
+        status === 409 ||
+        status === 425 ||
+        status === 429
+      ) {
         return true;
       }
 
@@ -258,7 +263,10 @@ export default abstract class Adapter {
       return true;
     }
 
-    if (message.includes("rate limit") || message.includes("too many requests")) {
+    if (
+      message.includes("rate limit") ||
+      message.includes("too many requests")
+    ) {
       return true;
     }
 
@@ -332,7 +340,10 @@ export default abstract class Adapter {
     return undefined;
   }
 
-  private create_attempt_signal(external_signal: AbortSignal | undefined, timeout_ms: number) {
+  private create_attempt_signal(
+    external_signal: AbortSignal | undefined,
+    timeout_ms: number,
+  ) {
     const controller = new AbortController();
     let by_external = false;
     let by_timeout = false;
@@ -354,7 +365,9 @@ export default abstract class Adapter {
 
     const timeout = setTimeout(() => {
       by_timeout = true;
-      controller.abort(new Error(`Adapter request timed out after ${timeout_ms}ms`));
+      controller.abort(
+        new Error(`Adapter request timed out after ${timeout_ms}ms`),
+      );
     }, timeout_ms);
 
     return {

@@ -8,7 +8,7 @@ export default interface Config {
   max_history?: number;
 
   models: ModelsConfig;
-  drivers: { [key: string]: Adapter };
+  drivers: { [key: string]: Adapter<any> };
   scenes: { [key: string]: Scene };
   tools: Tools[];
 }
