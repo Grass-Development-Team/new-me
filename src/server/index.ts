@@ -33,5 +33,9 @@ export default async function serve(
     port: port,
   });
 
-  logger.info(`Server is running on port ${host}:${port}`);
+  logger.info({
+    event: "server.listen",
+    host,
+    port,
+  });
 }

@@ -54,7 +54,7 @@ export default class WebSearch extends Tools<WebSearchArgs> {
 
     if (!model_config) {
       logger.warn({
-        message: "No Gemini adapter config found for web_search tool",
+        event: "tool.web_search.missing_model_config",
       });
 
       return {
@@ -63,11 +63,9 @@ export default class WebSearch extends Tools<WebSearchArgs> {
     }
 
     logger.info({
+      event: "tool.web_search.start",
       platform_id: ctx?.instance.platform,
-      data: {
-        message: "Calling web_search tool",
-        query: query,
-      },
+      query,
     });
 
     const adapter = new Gemini({
@@ -107,12 +105,10 @@ export default class WebSearch extends Tools<WebSearchArgs> {
         texts.join("\n").trim() || "未检索到可用结果，请尝试更具体的关键词。";
 
       logger.info({
+        event: "tool.web_search.end",
         platform_id: ctx?.instance.platform,
-        data: {
-          message: "Finished calling web_search tool",
-          query: query,
-          result_length: result.length,
-        },
+        query,
+        result_length: result.length,
       });
 
       return {
@@ -120,12 +116,10 @@ export default class WebSearch extends Tools<WebSearchArgs> {
       };
     } catch (error) {
       logger.error({
+        event: "tool.web_search.error",
         platform_id: ctx?.instance.platform,
-        data: {
-          message: "web_search tool failed",
-          query: query,
-          error: error instanceof Error ? error.message : String(error),
-        },
+        query,
+        error: error instanceof Error ? error.message : String(error),
       });
 
       return {

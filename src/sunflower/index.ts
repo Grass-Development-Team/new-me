@@ -55,38 +55,40 @@ export default class Sunflower {
       if (part.status === "queue") {
         msg_id = part.data;
         logger.info({
+          event: "sunflower.generate.queue",
           instance_id,
           msg_id,
-          data: "Message queued",
         });
       }
 
       if (part.status === "start") {
         logger.info({
+          event: "sunflower.generate.start",
           instance_id,
           msg_id,
-          data: "Generation start",
         });
       }
 
       if (part.status === "part") {
         if (part.data.type === "image") {
           logger.info({
+            event: "sunflower.generate.part.image",
             instance_id,
             msg_id,
-            data: "Received image part",
           });
         } else {
           logger.info({
+            event: "sunflower.generate.part",
             instance_id,
             msg_id,
-            data: part.data,
+            part: part.data,
           });
         }
       }
 
       if (part.status === "error") {
         logger.error({
+          event: "sunflower.generate.error",
           instance_id,
           msg_id,
           error: part.data,
@@ -95,9 +97,9 @@ export default class Sunflower {
 
       if (part.status === "end") {
         logger.info({
+          event: "sunflower.generate.end",
           instance_id,
           msg_id,
-          data: "Generation end",
         });
       }
     }

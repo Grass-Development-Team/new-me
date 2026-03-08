@@ -113,12 +113,12 @@ export default abstract class Adapter<T = undefined> {
         }
 
         logger.warn({
+          event: "adapter.request.retry",
           adapter: this.id,
           attempt,
           retry_times,
           delay_ms,
           error: error instanceof Error ? error.message : String(error),
-          data: "Adapter request failed, retrying",
         });
 
         await this.sleep(delay_ms, options?.signal);
@@ -198,12 +198,12 @@ export default abstract class Adapter<T = undefined> {
         }
 
         logger.warn({
+          event: "adapter.stream.retry",
           adapter: this.id,
           attempt,
           retry_times,
           delay_ms,
           error: error instanceof Error ? error.message : String(error),
-          data: "Adapter stream request failed before first token, retrying",
         });
 
         await this.sleep(delay_ms, options?.signal);
