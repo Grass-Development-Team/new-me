@@ -125,7 +125,7 @@ export default class OpenAI extends Adapter {
                 }
 
                 logger.error({
-                  message: "Tool execution failed",
+                  event: "adapter.openai.tool.failed",
                   tool: name,
                   error: error instanceof Error ? error.message : String(error),
                 });
@@ -166,147 +166,144 @@ export default class OpenAI extends Adapter {
     message: Message[],
     options?: GenerateOptions,
   ): AsyncGenerator<MessagePartUnion> {
-    yield* this.execute_stream_with_retry(
-      ({ signal, mark_side_effect }) => {
-        const messages = this.messages_to_content(message, options);
+    yield* this.execute_stream_with_retry(({ signal, mark_side_effect }) => {
+      const messages = this.messages_to_content(message, options);
 
-        const generate_stream = async function* (
-          client: OpenAIClient,
-          adapter: OpenAI,
-          current: ChatCompletionMessageParam[],
-        ): AsyncGenerator<MessagePartUnion> {
-          const tools = OpenAI.prototype.tools_to_openai_tools(
-            options?.tools ?? [],
-          );
-          const stream = await client.chat.completions.create(
-            {
-              model: options?.model ?? adapter.config.model,
-              messages: current,
-              ...(tools && tools.length
-                ? { tools, tool_choice: "auto" as const }
-                : {}),
-              stream: true,
-            },
-            {
-              signal,
-            },
-          );
+      const generate_stream = async function* (
+        client: OpenAIClient,
+        adapter: OpenAI,
+        current: ChatCompletionMessageParam[],
+      ): AsyncGenerator<MessagePartUnion> {
+        const tools = OpenAI.prototype.tools_to_openai_tools(
+          options?.tools ?? [],
+        );
+        const stream = await client.chat.completions.create(
+          {
+            model: options?.model ?? adapter.config.model,
+            messages: current,
+            ...(tools && tools.length
+              ? { tools, tool_choice: "auto" as const }
+              : {}),
+            stream: true,
+          },
+          {
+            signal,
+          },
+        );
 
-          const tool_calls_buffer = new Map<number, OpenAIToolCall>();
-          let streamed_text = "";
+        const tool_calls_buffer = new Map<number, OpenAIToolCall>();
+        let streamed_text = "";
 
-          for await (const chunk of stream as AsyncIterable<ChatCompletionChunk>) {
-            const delta = chunk.choices[0]?.delta;
-            if (!delta) continue;
+        for await (const chunk of stream as AsyncIterable<ChatCompletionChunk>) {
+          const delta = chunk.choices[0]?.delta;
+          if (!delta) continue;
 
-            if (delta.content) {
-              streamed_text += delta.content;
-              yield { type: "text", content: delta.content };
-            }
-
-            if (delta.tool_calls?.length) {
-              for (const tc of delta.tool_calls) {
-                const index = tc.index ?? 0;
-
-                const prev =
-                  tool_calls_buffer.get(index) ??
-                  ({
-                    id: tc.id ?? "",
-                    type: "function",
-                    function: {
-                      name: "",
-                      arguments: "",
-                    },
-                  } as OpenAIToolCall);
-
-                if (tc.id) prev.id = tc.id;
-                if (tc.function?.name) {
-                  prev.function.name += tc.function.name;
-                }
-                if (tc.function?.arguments) {
-                  prev.function.arguments += tc.function.arguments;
-                }
-
-                tool_calls_buffer.set(index, prev);
-              }
-            }
+          if (delta.content) {
+            streamed_text += delta.content;
+            yield { type: "text", content: delta.content };
           }
 
-          const tool_calls = Array.from(tool_calls_buffer.values());
-          if (tool_calls.length > 0) {
-            const assistant_msg: ChatCompletionMessageParam = {
-              role: "assistant",
-              content: streamed_text || null,
-              tool_calls: tool_calls,
-            };
-            current.push(assistant_msg);
+          if (delta.tool_calls?.length) {
+            for (const tc of delta.tool_calls) {
+              const index = tc.index ?? 0;
 
-            const tool_messages: ChatCompletionMessageParam[] = [];
-            const functions = options?.tools ?? [];
+              const prev =
+                tool_calls_buffer.get(index) ??
+                ({
+                  id: tc.id ?? "",
+                  type: "function",
+                  function: {
+                    name: "",
+                    arguments: "",
+                  },
+                } as OpenAIToolCall);
 
-            for (const call of tool_calls as ChatCompletionMessageToolCall[]) {
-              if (call.type !== "function") continue;
-
-              const name = call.function.name;
-              const args_str = call.function.arguments;
-              let tool_response = "No tools found";
-
-              const tool = functions.find((item) => item.name === name);
-              if (tool) {
-                try {
-                  const args = args_str ? JSON.parse(args_str) : {};
-                  mark_side_effect();
-                  const res = await adapter.call_tool(
-                    tool,
-                    args,
-                    options?.tool_context,
-                    signal,
-                  );
-
-                  tool_response =
-                    typeof res?.result === "string"
-                      ? res.result
-                      : "Tool returned invalid response";
-
-                  if (Array.isArray(res?.parts)) {
-                    for (const part of res.parts) yield part;
-                  }
-                } catch (error) {
-                  if (signal.aborted) {
-                    throw error;
-                  }
-
-                  logger.error({
-                    message: "Tool execution failed",
-                    tool: name,
-                    error: error instanceof Error ? error.message : String(error),
-                  });
-                  const error_message =
-                    error instanceof Error ? error.message : String(error);
-                  tool_response = `Tool ${name} failed: ${error_message}`;
-                }
-              } else {
-                tool_response = `Tool ${name} not found`;
+              if (tc.id) prev.id = tc.id;
+              if (tc.function?.name) {
+                prev.function.name += tc.function.name;
+              }
+              if (tc.function?.arguments) {
+                prev.function.arguments += tc.function.arguments;
               }
 
-              tool_messages.push({
-                role: "tool",
-                tool_call_id: call.id,
-                content: tool_response,
-              });
+              tool_calls_buffer.set(index, prev);
+            }
+          }
+        }
+
+        const tool_calls = Array.from(tool_calls_buffer.values());
+        if (tool_calls.length > 0) {
+          const assistant_msg: ChatCompletionMessageParam = {
+            role: "assistant",
+            content: streamed_text || null,
+            tool_calls: tool_calls,
+          };
+          current.push(assistant_msg);
+
+          const tool_messages: ChatCompletionMessageParam[] = [];
+          const functions = options?.tools ?? [];
+
+          for (const call of tool_calls as ChatCompletionMessageToolCall[]) {
+            if (call.type !== "function") continue;
+
+            const name = call.function.name;
+            const args_str = call.function.arguments;
+            let tool_response = "No tools found";
+
+            const tool = functions.find((item) => item.name === name);
+            if (tool) {
+              try {
+                const args = args_str ? JSON.parse(args_str) : {};
+                mark_side_effect();
+                const res = await adapter.call_tool(
+                  tool,
+                  args,
+                  options?.tool_context,
+                  signal,
+                );
+
+                tool_response =
+                  typeof res?.result === "string"
+                    ? res.result
+                    : "Tool returned invalid response";
+
+                if (Array.isArray(res?.parts)) {
+                  for (const part of res.parts) yield part;
+                }
+              } catch (error) {
+                if (signal.aborted) {
+                  throw error;
+                }
+
+                logger.error({
+                  event: "adapter.openai.tool.failed",
+                  tool: name,
+                  error: error instanceof Error ? error.message : String(error),
+                });
+                const error_message =
+                  error instanceof Error ? error.message : String(error);
+                tool_response = `Tool ${name} failed: ${error_message}`;
+              }
+            } else {
+              tool_response = `Tool ${name} not found`;
             }
 
-            current.push(...tool_messages);
-
-            yield* generate_stream(client, adapter, current);
-            return;
+            tool_messages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              content: tool_response,
+            });
           }
-        };
 
-        return generate_stream(this.client, this, messages);
-      },
-      options,
-    );
+          current.push(...tool_messages);
+
+          yield* generate_stream(client, adapter, current);
+          return;
+        }
+      };
+
+      return generate_stream(this.client, this, messages);
+    }, options);
   }
 
   messages_to_content(
@@ -375,8 +372,7 @@ export default class OpenAI extends Adapter {
         const has_non_text = content_parts.some((part) => part.type !== "text");
         if (has_non_text) {
           logger.warn({
-            message:
-              "Assistant message contains non-text parts (e.g. images) which are not supported by OpenAI and will be discarded",
+            event: "adapter.openai.message.non_text_assistant_discarded",
           });
         }
         const assistant_content = (

@@ -45,14 +45,13 @@ export default class AddScore extends Tools {
     });
 
     logger.info({
+      event: "tool.add_score.updated",
       platform_id: ctx.instance.platform,
-      data: {
-        message: `Updated score for user ${target}`,
-        ...args,
-        user: {
-          ...user_data,
-          score: user_data.score + score,
-        },
+      target,
+      score_delta: score,
+      user: {
+        ...user_data,
+        score: user_data.score + score,
       },
     });
 

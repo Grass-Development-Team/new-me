@@ -155,7 +155,7 @@ export default class Gemini extends Adapter<GeminiConfig> {
                 }
 
                 logger.error({
-                  message: "Tool execution failed",
+                  event: "adapter.gemini.tool.failed",
                   tool: call.name,
                   error: error instanceof Error ? error.message : String(error),
                 });
@@ -221,7 +221,10 @@ export default class Gemini extends Adapter<GeminiConfig> {
         all_tools: Tools[],
         contents: Content[],
       ): AsyncGenerator<MessagePartUnion> {
-        logger.debug("Send generate request:", contents);
+        logger.debug({
+          event: "adapter.gemini.stream.request",
+          contents,
+        });
 
         const res = await client.models.generateContentStream({
           model: options?.model ?? config.model,
@@ -236,7 +239,10 @@ export default class Gemini extends Adapter<GeminiConfig> {
         const message: Part[] = [];
 
         for await (const chunk of res) {
-          logger.debug("Received part:", chunk);
+          logger.debug({
+            event: "adapter.gemini.stream.chunk",
+            chunk,
+          });
 
           const content = chunk.candidates?.[0]?.content;
 
@@ -259,7 +265,9 @@ export default class Gemini extends Adapter<GeminiConfig> {
           }
 
           if (!content?.parts) {
-            logger.warn("Function call chunk missing content parts");
+            logger.warn({
+              event: "adapter.gemini.stream.function_call_missing_parts",
+            });
           }
 
           contents.push({
@@ -296,7 +304,7 @@ export default class Gemini extends Adapter<GeminiConfig> {
                 }
 
                 logger.error({
-                  message: "Tool execution failed",
+                  event: "adapter.gemini.tool.failed",
                   tool: call.name,
                   error: error instanceof Error ? error.message : String(error),
                 });

@@ -47,18 +47,16 @@ export default class GenerateImageTool extends Tools {
     }
 
     logger.info({
+      event: "tool.generate_image.start",
       platform_id: ctx?.instance.platform,
-      data: {
-        message: "Calling generate_image tool",
-        description,
-      },
+      description,
     });
 
     const sunflower = ctx?.sunflower;
 
     if (!sunflower) {
       logger.warn({
-        message: "Tool context is missing sunflower instance",
+        event: "tool.generate_image.missing_sunflower",
       });
 
       return {
@@ -71,7 +69,7 @@ export default class GenerateImageTool extends Tools {
 
     if (!model) {
       logger.warn({
-        message: "No image_gen_model configured in sunflower config",
+        event: "tool.generate_image.missing_model",
       });
 
       return {
@@ -87,7 +85,8 @@ export default class GenerateImageTool extends Tools {
 
       if (!adapter) {
         logger.warn({
-          message: `No adapter found for image_gen_model with driver ${model.driver}`,
+          event: "tool.generate_image.missing_adapter",
+          driver: model.driver,
         });
 
         return {
@@ -123,7 +122,7 @@ export default class GenerateImageTool extends Tools {
       }
     } catch (error) {
       logger.error({
-        message: "Error occurred while generating image",
+        event: "tool.generate_image.error",
         error: error instanceof Error ? error.message : String(error),
       });
 
@@ -133,11 +132,9 @@ export default class GenerateImageTool extends Tools {
     }
 
     logger.info({
+      event: "tool.generate_image.end",
       platform_id: ctx?.instance.platform,
-      data: {
-        message: "Finished calling generate_image tool",
-        description,
-      },
+      generated_images: parts.length,
     });
 
     this.last_used = new Date();
