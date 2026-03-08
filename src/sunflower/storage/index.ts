@@ -1,6 +1,39 @@
 import { Level } from "level";
 import type { InstanceData, UserData } from "./types";
 
+/**
+ * A simple key-value storage interface. The key is of type K, and the value is of type V.
+ */
+export abstract class KVStorage<K, V> {
+  /**
+   * Set a value for a given key. The value is a partial of V, meaning it can contain only some of the properties of V.
+   *
+   * @param key The key to set the value for.
+   * @param value The value to set for the key. It can be a partial of V, meaning it can contain only some of the properties of V.
+   *
+   * @returns true if the operation is successful, false otherwise.
+   */
+  abstract set(key: K, value: Partial<V>): Promise<boolean>;
+
+  /**
+   * Get the value for a given key. The return type is an array of V, meaning it can return multiple values for a single key.
+   *
+   * @param key The key to get the value for.
+   *
+   * @returns An array of V, meaning it can return multiple values for a single key.
+   */
+  abstract get(key: K): Promise<Array<V>>;
+
+  /**
+   * Delete the value for a given key. The return type is a boolean, indicating whether the operation was successful or not.
+   *
+   * @param key The key to delete the value for.
+   *
+   * @returns true if the operation is successful, false otherwise.
+   */
+  abstract del(key: K): Promise<boolean>;
+}
+
 export default class Storage {
   private db: Level;
 
