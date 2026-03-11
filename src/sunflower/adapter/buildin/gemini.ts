@@ -12,6 +12,7 @@ import {
   HarmCategory,
   Type,
   type Content,
+  type FunctionCall,
   type FunctionDeclaration,
   type Part,
   type SafetySetting,
@@ -128,6 +129,15 @@ export default class Gemini extends Adapter<GeminiConfig> {
           const parts: Part[] = [];
 
           for (const call of res.functionCalls) {
+            if (!call.name) {
+              logger.error({
+                event: "adapter.gemini.tool.invalid_call",
+                reason: "missing_name",
+                call,
+              });
+              continue;
+            }
+
             const tool = functions.find((tool) => tool.name === call.name);
 
             let tool_response: string = "No tools found";
@@ -167,10 +177,18 @@ export default class Gemini extends Adapter<GeminiConfig> {
 
             parts.push({
               functionResponse: {
+                ...(call.id !== undefined ? { id: call.id } : {}),
                 name: call.name,
                 response: { result: tool_response },
               },
             });
+          }
+
+          if (!parts.length) {
+            logger.error({
+              event: "adapter.gemini.tool.no_valid_calls",
+            });
+            return final_res;
           }
 
           contents.push({
@@ -237,6 +255,32 @@ export default class Gemini extends Adapter<GeminiConfig> {
           },
         });
         const message: Part[] = [];
+        const function_call_order: string[] = [];
+        const function_calls: Map<string, FunctionCall> = new Map();
+        const call_key = (call: FunctionCall): string => {
+          if (call.id) {
+            return `id:${call.id}`;
+          }
+
+          try {
+            return `name:${call.name ?? ""}:args:${JSON.stringify(call.args ?? {})}`;
+          } catch {
+            return `name:${call.name ?? ""}:args:[unserializable]`;
+          }
+        };
+        const upsert_function_call = (call: FunctionCall | undefined): void => {
+          if (!call) {
+            return;
+          }
+
+          const key = call_key(call);
+
+          if (!function_calls.has(key)) {
+            function_call_order.push(key);
+          }
+
+          function_calls.set(key, call);
+        };
 
         for await (const chunk of res) {
           logger.debug({
@@ -248,88 +292,120 @@ export default class Gemini extends Adapter<GeminiConfig> {
 
           if (content) {
             for (const content_part of content.parts ?? []) {
+              message.push(content_part);
+              upsert_function_call(content_part.functionCall);
+
               const msg_part =
                 Gemini.prototype.part_to_message_part(content_part);
 
               if (msg_part) {
-                message.push(content_part);
                 yield msg_part;
-              } else if (content_part.functionCall) {
-                message.push(content_part);
               }
             }
           }
 
-          if (!chunk.functionCalls?.length) {
+          if (chunk.functionCalls?.length) {
+            for (const call of chunk.functionCalls) {
+              upsert_function_call(call);
+            }
+          }
+        }
+
+        const resolved_calls = function_call_order
+          .map((key) => function_calls.get(key))
+          .filter((call): call is FunctionCall => call !== undefined);
+
+        if (!resolved_calls.length) {
+          return;
+        }
+
+        if (!message.some((part) => part.functionCall)) {
+          logger.warn({
+            event: "adapter.gemini.stream.function_call_missing_parts",
+          });
+
+          for (const call of resolved_calls) {
+            message.push({
+              functionCall: call,
+            });
+          }
+        }
+
+        contents.push({
+          role: "model",
+          parts: [...message],
+        });
+        const parts: Part[] = [];
+
+        for (const call of resolved_calls) {
+          if (!call.name) {
+            logger.error({
+              event: "adapter.gemini.tool.invalid_call",
+              reason: "missing_name",
+              call,
+            });
             continue;
           }
 
-          if (!content?.parts) {
-            logger.warn({
-              event: "adapter.gemini.stream.function_call_missing_parts",
-            });
-          }
+          const tool = all_tools.find((tool) => tool.name === call.name);
 
-          contents.push({
-            role: "model",
-            parts: [...message],
-          });
-          const parts: Part[] = [];
+          let tool_response: string = "No tools found";
 
-          for (const call of chunk.functionCalls) {
-            const tool = all_tools.find((tool) => tool.name === call.name);
+          if (tool) {
+            try {
+              mark_side_effect();
+              const res = await adapter.call_tool(
+                tool,
+                call.args ?? {},
+                options?.tool_context,
+                signal,
+              );
+              tool_response =
+                typeof res?.result === "string"
+                  ? res.result
+                  : "Tool returned invalid response";
 
-            let tool_response: string = "No tools found";
-
-            if (tool) {
-              try {
-                mark_side_effect();
-                const res = await adapter.call_tool(
-                  tool,
-                  call.args ?? {},
-                  options?.tool_context,
-                  signal,
-                );
-                tool_response =
-                  typeof res?.result === "string"
-                    ? res.result
-                    : "Tool returned invalid response";
-
-                if (Array.isArray(res?.parts)) {
-                  for (const part of res.parts) yield part;
-                }
-              } catch (error) {
-                if (signal.aborted) {
-                  throw error;
-                }
-
-                logger.error({
-                  event: "adapter.gemini.tool.failed",
-                  tool: call.name,
-                  error: error instanceof Error ? error.message : String(error),
-                });
-                tool_response = `Tool ${call.name} failed`;
+              if (Array.isArray(res?.parts)) {
+                for (const part of res.parts) yield part;
               }
-            } else {
-              tool_response = `Tool ${call.name} not found`;
-            }
+            } catch (error) {
+              if (signal.aborted) {
+                throw error;
+              }
 
-            parts.push({
-              functionResponse: {
-                name: call.name,
-                response: { result: tool_response },
-              },
-            });
+              logger.error({
+                event: "adapter.gemini.tool.failed",
+                tool: call.name,
+                error: error instanceof Error ? error.message : String(error),
+              });
+              tool_response = `Tool ${call.name} failed`;
+            }
+          } else {
+            tool_response = `Tool ${call.name} not found`;
           }
 
-          contents.push({
-            role: "user",
-            parts: parts,
+          parts.push({
+            functionResponse: {
+              ...(call.id !== undefined ? { id: call.id } : {}),
+              name: call.name,
+              response: { result: tool_response },
+            },
           });
+        }
 
-          yield* generate(client, config, adapter, all_tools, contents);
+        if (!parts.length) {
+          logger.error({
+            event: "adapter.gemini.tool.no_valid_calls",
+          });
           return;
         }
+
+        contents.push({
+          role: "user",
+          parts: parts,
+        });
+
+        yield* generate(client, config, adapter, all_tools, contents);
       };
 
       return generate(this.client, this.config, this, functions, contents);
